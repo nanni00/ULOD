@@ -1,0 +1,10 @@
+.git
+.env
+data
+**.csv
+**.db
+
+__pycache__
+.ipynb_checkpoints
+.virtual_documents
+.jupyter

@@ -79,6 +79,21 @@ class CKANDownloadConfig:
         self.verbose = verbose
 
 
+def _save_csv(
+    df: pd.DataFrame,
+    download_format: str,
+    download_dst: Path,
+    save_dataset_kwargs: dict = {},
+):
+    match download_format:
+        case "csv":
+            df.to_csv(download_dst, **save_dataset_kwargs)
+        case "parquet":
+            df.to_parquet(download_dst, **save_dataset_kwargs)
+        case "json":
+            df.to_json(download_dst, **save_dataset_kwargs)
+
+
 def csv(
     url: str,
     data: bytes,
@@ -113,16 +128,18 @@ def csv(
         # in some cases data are encoded, thus we try again with a bytes stream
         df = pd.read_csv(BytesIO(data), **read_dataset_kwargs)
 
-    match download_format:
-        case "csv":
-            df.to_csv(download_dst, **save_dataset_kwargs)
-        case "parquet":
-            df.to_parquet(download_dst, **save_dataset_kwargs)
-        case "json":
-            df.to_json(download_dst, **save_dataset_kwargs)
+    _save_csv(df, download_format, download_dst, save_dataset_kwargs)
 
 
-def zip(url: str, data: bytes, resource_id: str, download_dst: Path, *args):
+def zip(
+    url: str,
+    data: bytes,
+    resource_id: str,
+    download_dst: Path,
+    download_format: str,
+    read_dataset_kwargs: dict = {},
+    save_dataset_kwargs: dict = {},
+):
     """
     Extract all the content from the given input data as it is a ZIP archive.
     A new directory is created on top of the download destination, and all the
@@ -134,7 +151,12 @@ def zip(url: str, data: bytes, resource_id: str, download_dst: Path, *args):
         # we don't use zip.extractall() as suggested by the documentation
         # https://docs.python.org/3/library/zipfile.html#zipfile.ZipFile.extractall
         for filename in zip.namelist():
-            zip.extract(filename, dst_folder)
+            if "metadata" in filename.lower():
+                zip.extract(filename, dst_folder)
+            else:
+                with zip.open(filename) as csv_file:
+                    df = pd.read_csv(csv_file, **read_dataset_kwargs)
+                    _save_csv(df, download_format, download_dst, save_dataset_kwargs)
 
 
 def _thread_task(

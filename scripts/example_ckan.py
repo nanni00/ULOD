@@ -61,7 +61,7 @@ def canada_sample():
 
     cfg = CKANDownloadConfig(
         download_destination,
-        max_datasets=30,
+        max_datasets=20,
         from_dataset_index=0,
         batch_fetch_metadata=10,
         filter_resource_metadata=canada_filter_resource_metadata,
@@ -73,7 +73,7 @@ def canada_sample():
         engine="pandas",
         max_resource_size=2**25,
         max_process_workers=2,
-        max_thread_workers=1,
+        max_thread_workers=2,
         verbose=True,
     )
 
@@ -84,7 +84,7 @@ def canada_all():
     download_destination = Path(os.environ["DATADIR"], "open_data", "ckan", "canada")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    canada = CanadaCKAN()
+    canada = CanadaCKAN(headers=headers)
     cfg = CKANDownloadConfig(
         download_destination,
         max_datasets=20_000,
@@ -110,7 +110,7 @@ def modena_all():
     download_destination = Path(os.environ["DATADIR"], "open_data", "ckan", "modena")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    modena = ModenaCKAN()
+    modena = ModenaCKAN(headers=headers)
 
     cfg = CKANDownloadConfig(
         download_destination,

@@ -1,4 +1,5 @@
 from typing import Literal, Optional
+
 import polars as pl
 
 

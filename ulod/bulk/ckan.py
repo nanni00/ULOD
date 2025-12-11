@@ -342,18 +342,20 @@ def fetch_metadata(
 
                 # FIX: if any of these is None or an empty string,
                 # continue since this can lead to problems
-                if not url or not resource_id or not resource_name:
+                if not url or not resource_id:
                     continue
 
                 # clean these two values
                 resource_id = resource_id.replace("/", "_")
                 resource_name = (
                     resource_name.strip().replace(" ", "-").replace(":", "-")
+                    if resource_name
+                    else ""
                 )
 
                 package_resource_ids.append(resource_id)
 
-                if cfg.save_with_resource_name:
+                if cfg.save_with_resource_name and resource_name:
                     resource_id = "{}::{}".format(resource_name, resource_id)
 
                 # NOTE: in some canada records, the URL is partially

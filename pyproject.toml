@@ -17,7 +17,7 @@ dependencies = [
   "polars>=1.35.2",
   "sodapy==2.2.0",
   "requests>=2.32.5",
-  "beautifuolsoup4==4.14.2",
+  "beautifulsoup4==4.14.2",
   "tqdm==4.67.1",
   "fake_useragent==2.2.0",
   "urllib3==2.5.0",

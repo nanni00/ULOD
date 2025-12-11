@@ -336,17 +336,28 @@ def fetch_metadata(
                 ):
                     continue
 
-                resource_id = resource["id"].replace("/", "_")
-                package_resource_ids.append(resource_id)
-
-                resource_name = (
-                    resource["name"].strip().replace(" ", "-").replace(":", "-")
-                )
                 url = resource["url"]
+                resource_id = resource["id"]
+                resource_name = resource["name"]
+
+                # FIX: if any of these is None or an empty string,
+                # continue since this can lead to problems
+                if not url or not resource_id or not resource_name:
+                    continue
+
+                # clean these two values
+                resource_id = resource_id.replace("/", "_")
+                resource_name = (
+                    resource_name.strip().replace(" ", "-").replace(":", "-")
+                )
+
+                package_resource_ids.append(resource_id)
 
                 if cfg.save_with_resource_name:
                     resource_id = "{}::{}".format(resource_name, resource_id)
 
+                # NOTE: in some canada records, the URL is partially
+                # correct but needs to be extended with the base url
                 if not url.startswith("http"):
                     url = f"{client.base_url}/{url}"
                 resource_ids_urls.append((resource_id, url))

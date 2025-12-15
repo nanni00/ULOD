@@ -94,6 +94,10 @@ def _save_csv(
             df.to_json(download_dst, **save_dataset_kwargs)
 
 
+# TODO: encapsulate csv() and zip() into a more generale "foo_get_data()",
+# with some more customization options, also on post-processing dataframe,
+# that can be defined by the user and passed as argument into the main config
+# before storing (like filter empty rows, check for min/max heigth/width/area, ...)
 def csv(
     url: str,
     data: bytes,
@@ -102,6 +106,7 @@ def csv(
     download_format: str,
     read_dataset_kwargs: dict = {},
     save_dataset_kwargs: dict = {},
+    post_process_df: Optional[Callable] = None,
 ):
     """
     Read a CSV file from the given input data. If the file name terminates
@@ -115,6 +120,7 @@ def csv(
     # and we do not want to start reading zip files here
     assert not url.endswith(".zip")
     assert "DOCTYPE" not in data[:100].decode("latin-1")
+    assert "<html>" not in data[:100].decode("latin-1")
 
     download_dst = download_dst.joinpath(f"{resource_id}.{download_format}")
 
@@ -122,11 +128,11 @@ def csv(
         # this should mean that the file is contained into another folder
         download_dst.parent.mkdir(parents=True, exist_ok=True)
 
-    try:
-        df = pd.read_csv(data, **read_dataset_kwargs)
-    except TypeError:
-        # in some cases data are encoded, thus we try again with a bytes stream
-        df = pd.read_csv(BytesIO(data), **read_dataset_kwargs)
+    # try:
+    #     df = pd.read_csv(data, **read_dataset_kwargs)
+    # except TypeError:
+    # in some cases data are encoded, thus we try again with a bytes stream
+    df = pd.read_csv(BytesIO(data), **read_dataset_kwargs)
 
     _save_csv(df, download_format, download_dst, save_dataset_kwargs)
 

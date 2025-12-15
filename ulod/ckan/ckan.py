@@ -25,7 +25,7 @@ class CKAN:
     def _make_request(self, url: str):
         """ "Do a GET request"""
         response = requests.get(url, headers=self.headers)
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Failure with URL: {url}"
 
         return response.json()
 

@@ -124,7 +124,7 @@ def csv(
 
     try:
         df = pd.read_csv(data, **read_dataset_kwargs)
-    except Exception:
+    except TypeError:
         # in some cases data are encoded, thus we try again with a bytes stream
         df = pd.read_csv(BytesIO(data), **read_dataset_kwargs)
 
@@ -151,12 +151,23 @@ def zip(
         # we don't use zip.extractall() as suggested by the documentation
         # https://docs.python.org/3/library/zipfile.html#zipfile.ZipFile.extractall
         for filename in zip.namelist():
-            if "metadata" in filename.lower():
+            if not filename.endswith(".csv"):
+                continue
+            elif "metadata" in filename.lower():
                 zip.extract(filename, dst_folder)
             else:
                 with zip.open(filename) as csv_file:
                     df = pd.read_csv(csv_file, **read_dataset_kwargs)
-                    _save_csv(df, download_format, download_dst, save_dataset_kwargs)
+                    _save_csv(
+                        df,
+                        download_format,
+                        dst_folder.joinpath(filename),
+                        save_dataset_kwargs,
+                    )
+    try:
+        dst_folder.rmdir()
+    except OSError:
+        pass
 
 
 def _thread_task(
@@ -195,10 +206,14 @@ def _thread_task(
             )
             success = True
             break
+        except KeyboardInterrupt as e:
+            raise e
         except AssertionError:
             continue
         except Exception as e:
-            errors.append(f"[method:{method.__name__}][error:{str(e)}]")
+            errors.append(
+                f"[method:{method.__name__}][error-type:{type(e)}][error:{str(e)}]"
+            )
 
     if cfg.verbose:
         cfg._pbars[os.getpid()].update()
@@ -246,6 +261,8 @@ def _process_task(
                 for e in errors:
                     logger.error(f"[URL:{url}][TYPE:{type(e)}][MSG:{e}]")
 
+            except KeyboardInterrupt as e:
+                raise e
             except Exception as e:
                 logger.error(f"[URL:{url}][TYPE:{type(e)}][MSG:{str(e)}]")
     download_t = round(time.time() - start_t)
@@ -285,6 +302,8 @@ def download_tabular_resources(
         ):
             try:
                 success_count += future.result()
+            except KeyboardInterrupt as e:
+                raise e
             except Exception as e:
                 logger.error(str(e))
 

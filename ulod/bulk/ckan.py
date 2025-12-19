@@ -266,9 +266,6 @@ def _process_task(
 
                 for e in errors:
                     logger.error(f"[URL:{url}][TYPE:{type(e)}][MSG:{e}]")
-
-            except KeyboardInterrupt as e:
-                raise e
             except Exception as e:
                 logger.error(f"[URL:{url}][TYPE:{type(e)}][MSG:{str(e)}]")
     download_t = round(time.time() - start_t)

@@ -1,4 +1,4 @@
-from .ckan import CKAN
+from ulod.ckan.ckan import CKAN
 
 
 class ItalyCKAN(CKAN):

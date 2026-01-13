@@ -13,6 +13,7 @@ requires-python = ">=3.13"
 dependencies = [
   "beautifulsoup4>=4.14.3",
   "fake-useragent>=2.2.0",
+  "fastexcel>=0.18.0",
   "pandas>=2.3.3",
   "polars>=1.36.1",
   "requests>=2.32.5",

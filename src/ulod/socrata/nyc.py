@@ -1,8 +1,9 @@
 from typing import Optional
-from .socrata import SocrataClient
+
+from ulod.socrata.socrata import SocrataClient
 
 
-class ChicagoSocrata(SocrataClient):
+class NYCSocrata(SocrataClient):
     def __init__(
         self,
         app_token: str,
@@ -10,4 +11,4 @@ class ChicagoSocrata(SocrataClient):
         password: Optional[str] = None,
         timeout: int = 20,
     ) -> None:
-        super().__init__("data.cityofchicago.org", app_token, user, password, timeout)
+        super().__init__("data.cityofnewyork.us", app_token, user, password, timeout)

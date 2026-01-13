@@ -1,0 +1,9 @@
+beautifulsoup4>=4.14.3
+fake-useragent>=2.2.0
+fastexcel>=0.18.0
+pandas>=2.3.3
+polars>=1.36.1
+requests>=2.32.5
+sodapy>=2.2.0
+tqdm>=4.67.1
+urllib3>=2.6.2

@@ -6,7 +6,7 @@ import pandas as pd
 import polars as pl
 from sodapy import Socrata
 
-from .utils import cast_socrata_types
+from ulod.socrata.utils import cast_socrata_types
 
 
 class SocrataClient:

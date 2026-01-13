@@ -1,18 +1,18 @@
-import time
 import json
 import os
+import time
 import zipfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Literal, Optional, Callable
+from typing import Any, Callable, Literal, Optional
 
 import pandas as pd
 from tqdm import tqdm
 from urllib3 import PoolManager
 
-from .utils import init_logger
-from ..ckan import CKAN
+from ulod.bulk.utils import init_logger
+from ulod.ckan.ckan import CKAN
 
 
 class CKANDownloadConfig:

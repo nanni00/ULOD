@@ -8,8 +8,8 @@ from typing import Literal
 
 from tqdm import tqdm
 
-from ..socrata import SocrataClient
-from .utils import init_logger
+from ulod.socrata.socrata import SocrataClient
+from ulod.bulk.utils import init_logger
 
 warnings.filterwarnings("ignore")
 

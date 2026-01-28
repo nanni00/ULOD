@@ -1,4 +1,6 @@
-import requests
+from typing import Optional
+
+import urllib3
 
 
 def endpoint(name):
@@ -16,16 +18,27 @@ def endpoint(name):
 # python functools.partial, but in this way we lose the possibility
 # to override methods for specific cases
 class CKAN:
-    def __init__(self, base_url: str, action_url: str, headers: dict) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        action_url: str,
+        headers: dict,
+        connection_kw: Optional[dict] = None,
+    ) -> None:
         self.base_url = base_url
         self.action_url = action_url
         self.final_url = f"{base_url}{action_url}"
         self.headers = headers
+        self.connection_kw = connection_kw if connection_kw else {}
 
     def _make_request(self, url: str):
         """ "Do a GET request"""
-        response = requests.get(url, headers=self.headers)
-        assert response.status_code == 200, f"Failure with URL: {url}"
+        # response = requests.get(url, headers=self.headers, **self.connection_kw)
+        response = urllib3.request(
+            "GET", url, headers=self.headers, **self.connection_kw
+        )
+
+        assert response.status == 200, f"Failure with URL: {url}, {response.data}"
 
         return response.json()
 

@@ -1,16 +1,15 @@
-from typing import Any
-import re
+import argparse
 import os
+import re
 from pathlib import Path
+from typing import Any
 
 from fake_useragent import UserAgent
-
-from ulod.ckan import CanadaCKAN, ModenaCKAN
-from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
 
 ua = UserAgent()
 
 headers = {"User-Agent": ua.firefox}
+connection_pool_kw = {"redirect": True, "timeout": 5, "retries": 3}
 
 
 def canada_filter_resource_metadata(metadata: dict[str, Any]) -> bool:
@@ -23,6 +22,30 @@ def canada_filter_resource_metadata(metadata: dict[str, Any]) -> bool:
     if re.search(r"\(CSV.+\)", metadata["name"], re.DOTALL) is not None:
         return False
 
+    return True
+
+
+def _uk_filter_resource_metadata(metadata: dict[str, Any]) -> bool:
+    if metadata["format"].lower() not in ["csv"]:
+        return False
+    # TODO: UK tarif datasets have many many many different
+    # versions for the same data, thus is not easy to work
+    # on them for OrQA aim. For now, we skip them. In future,
+    # we might be interested into more fine-grained tasks
+    # about selecting some specific version of a dataset.
+    if metadata["name"] and re.match(r"v\d+", metadata["name"]):
+        return False
+
+    # NOTE: UK Contracts Finder datasets have a very bad formatting,
+    # something that have maybe taken from XML files to CSV without a
+    # proper handling. We can't work on them, since their informative
+    # content is not easy to catch.
+    if metadata["name"] and re.match(r"Contracts Finder", metadata["name"]):
+        return False
+
+    # related to the tarif datasets
+    # if "ODS" in metadata["name"]:
+    #     return False
     return True
 
 
@@ -52,12 +75,13 @@ save_csv_kwargs = {"index": False}
 
 
 def canada_sample():
-    download_destination = Path(
-        os.environ["DATADIR"], "open_data", "ckan", "canada_sample"
-    )
+    from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
+    from ulod.ckan import CanadaCKAN
+
+    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "canada_sample")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    canada = CanadaCKAN(headers=headers)
+    client = CanadaCKAN(headers=headers, connection_kw=connection_pool_kw)
 
     cfg = CKANDownloadConfig(
         download_destination,
@@ -67,9 +91,9 @@ def canada_sample():
         filter_resource_metadata=canada_filter_resource_metadata,
         download_format="csv",
         http_headers=headers,
-        read_dataset_kwargs=read_dataset_kwargs,
+        load_dataset_kwargs=read_dataset_kwargs,
         save_dataset_kwargs=save_csv_kwargs,
-        accept_zip=True,
+        accept_zip_files=True,
         engine="pandas",
         max_resource_size=2**25,
         max_process_workers=2,
@@ -77,14 +101,17 @@ def canada_sample():
         verbose=True,
     )
 
-    ckan_download_datasets(cfg, canada)
+    ckan_download_datasets(cfg, client)
 
 
 def canada_all():
-    download_destination = Path(os.environ["DATADIR"], "open_data", "ckan", "canada")
+    from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
+    from ulod.ckan import CanadaCKAN
+
+    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "canada")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    canada = CanadaCKAN(headers=headers)
+    client = CanadaCKAN(headers=headers, connection_kw=connection_pool_kw)
     cfg = CKANDownloadConfig(
         download_destination,
         max_datasets=20_000,
@@ -93,9 +120,9 @@ def canada_all():
         filter_resource_metadata=canada_filter_resource_metadata,
         download_format="csv",
         http_headers=headers,
-        read_dataset_kwargs=read_dataset_kwargs,
+        load_dataset_kwargs=read_dataset_kwargs,
         save_dataset_kwargs=save_csv_kwargs,
-        accept_zip=True,
+        accept_zip_files=True,
         engine="pandas",
         max_resource_size=2**26,
         max_process_workers=4,
@@ -103,14 +130,49 @@ def canada_all():
         verbose=True,
     )
 
-    ckan_download_datasets(cfg, canada)
+    ckan_download_datasets(cfg, client)
+
+
+def uk_all():
+    from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
+    from ulod.ckan import UKCKAN
+
+    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk")
+    download_destination.mkdir(parents=True, exist_ok=True)
+
+    client = UKCKAN(headers=headers, connection_kw=connection_pool_kw)
+
+    download_cfg = CKANDownloadConfig(
+        download_destination,
+        max_datasets=100_000,
+        from_dataset_index=0,
+        batch_fetch_metadata=1000,
+        filter_resource_metadata=_uk_filter_resource_metadata,
+        download_format="csv",
+        http_headers=headers,
+        load_dataset_kwargs=read_dataset_kwargs,
+        save_dataset_kwargs=save_csv_kwargs,
+        save_with_resource_name=True,
+        accept_zip_files=False,
+        engine="pandas",
+        connection_pool_kw=connection_pool_kw,
+        max_resource_size=2**26,
+        max_process_workers=4,
+        max_thread_workers=4,
+        verbose=True,
+    )
+
+    ckan_download_datasets(download_cfg, client)
 
 
 def modena_all():
-    download_destination = Path(os.environ["DATADIR"], "open_data", "ckan", "modena")
+    from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
+    from ulod.ckan import ModenaCKAN
+
+    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "modena")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    modena = ModenaCKAN(headers=headers)
+    client = ModenaCKAN(headers=headers, connection_kw=connection_pool_kw)
 
     cfg = CKANDownloadConfig(
         download_destination,
@@ -120,7 +182,7 @@ def modena_all():
         filter_resource_metadata=modena_filter_resource_metadata,
         download_format="csv",
         http_headers=headers,
-        read_dataset_kwargs=read_dataset_kwargs,
+        load_dataset_kwargs=read_dataset_kwargs,
         save_dataset_kwargs=save_csv_kwargs,
         save_with_resource_name=True,
         engine="pandas",
@@ -130,20 +192,34 @@ def modena_all():
         verbose=True,
     )
 
-    ckan_download_datasets(cfg, modena)
+    ckan_download_datasets(cfg, client)
 
 
 def main():
-    import sys
+    parser = argparse.ArgumentParser(description="CKAN bulk downloads examples CLI")
 
-    args = sys.argv
+    # Define positional arguments
+    parser.add_argument(
+        "location", choices=["canada", "modena", "uk"], help="Target location"
+    )
+    parser.add_argument("mode", choices=["all", "sample"], help="Download mode")
 
-    if args[1:] == ["canada", "all"]:
-        canada_all()
-    elif args[1:] == ["canada", "sample"]:
-        canada_sample()
-    elif args[1:] == ["modena", "all"]:
-        modena_all()
+    args = parser.parse_args()
+
+    # Dispatch logic
+    commands = {
+        ("canada", "all"): canada_all,
+        ("canada", "sample"): canada_sample,
+        ("modena", "all"): modena_all,
+        ("uk", "all"): uk_all,
+    }
+
+    func = commands.get((args.location, args.mode))
+
+    if func:
+        func()
+    else:
+        print(f"Error: The combination {args.location} {args.mode} is not supported.")
 
 
 if __name__ == "__main__":

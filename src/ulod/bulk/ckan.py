@@ -5,81 +5,21 @@ import zipfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Callable, Literal, Optional
+
+from typing import Callable, Optional
 
 import pandas as pd
 from tqdm import tqdm
 from urllib3 import PoolManager
 
+
+from ulod.ckan import CKAN
+from ulod.utils.exceptions import IsHTMLError, IsZIPError
+from ulod.bulk.configurations import CKANDownloadConfig
 from ulod.bulk.utils import init_logger
-from ulod.ckan.ckan import CKAN
 
 
-class CKANDownloadConfig:
-    def __init__(
-        self,
-        download_dst: Path,
-        max_datasets: int = int(1e9),
-        from_dataset_index: int = 0,
-        batch_fetch_metadata: int = 1000,
-        search_filters: dict = {},
-        filter_resource_metadata: Optional[Callable] = None,
-        download_format: Literal["csv", "parquet", "json"] = "csv",
-        read_dataset_kwargs: dict = {},
-        save_dataset_kwargs: dict = {},
-        save_with_resource_name: bool = True,
-        save_metadata: bool = True,
-        accept_zip: bool = True,
-        engine: Literal["pandas", "polars"] = "pandas",
-        http_headers: dict[str, Any] = {},
-        max_resource_size: Optional[int] = None,
-        max_process_workers: Optional[int] = None,
-        max_thread_workers: Optional[int] = None,
-        verbose: bool = False,
-    ) -> None:
-        if not os.path.exists(download_dst):
-            raise FileNotFoundError(f"Directory doesn't exist: {download_dst}")
-
-        self.engine = engine
-        if engine != "pandas":
-            raise NotImplementedError()
-
-        assert download_format in ["csv", "parquet", "json"], (
-            f"Invalid download format: {download_format}"
-        )
-        self.download_format = download_format
-
-        self.start = from_dataset_index
-        self.rows = max_datasets
-
-        self.batch = batch_fetch_metadata
-        self.search_filters = search_filters
-
-        self.filter_resource_metadata = filter_resource_metadata
-        self.download_dst = download_dst
-        self.datasets_folder_path: Path
-        self.log_folder_path: Path
-        self.metadata_path: Path
-        self.save_metadata = save_metadata
-
-        self.save_with_resource_name = save_with_resource_name
-
-        self.accept_zip = accept_zip
-
-        self.max_process_workers = max_process_workers if max_process_workers else 1
-        self.max_thread_workers = max_thread_workers if max_thread_workers else 1
-        self.max_resource_size = max_resource_size if max_resource_size else 2**20
-
-        self.headers = http_headers
-
-        self.read_dataset_kwargs = read_dataset_kwargs
-        self.save_dataset_kwargs = save_dataset_kwargs
-
-        self._pbars = {}
-        self.verbose = verbose
-
-
-def _save_csv(
+def _save_dataset(
     df: pd.DataFrame,
     download_format: str,
     download_dst: Path,
@@ -118,9 +58,12 @@ def csv(
     """
     # sometimes the data are encoded, sometimes not
     # and we do not want to start reading zip files here
-    assert not url.endswith(".zip")
-    assert "DOCTYPE" not in data[:100].decode("latin-1")
-    assert "<html>" not in data[:100].decode("latin-1")
+    if url.endswith(".zip"):
+        raise IsZIPError(url)
+
+    init_bytes = data[:100].decode("latin-1")
+    if "DOCTYPE" in init_bytes or "<html>" in init_bytes:
+        raise IsHTMLError(init_bytes)
 
     download_dst = download_dst.joinpath(f"{resource_id}.{download_format}")
 
@@ -128,13 +71,9 @@ def csv(
         # this should mean that the file is contained into another folder
         download_dst.parent.mkdir(parents=True, exist_ok=True)
 
-    # try:
-    #     df = pd.read_csv(data, **read_dataset_kwargs)
-    # except TypeError:
-    # in some cases data are encoded, thus we try again with a bytes stream
     df = pd.read_csv(BytesIO(data), **read_dataset_kwargs)
 
-    _save_csv(df, download_format, download_dst, save_dataset_kwargs)
+    _save_dataset(df, download_format, download_dst, save_dataset_kwargs)
 
 
 def zip(
@@ -164,7 +103,7 @@ def zip(
             else:
                 with zip.open(filename) as csv_file:
                     df = pd.read_csv(csv_file, **read_dataset_kwargs)
-                    _save_csv(
+                    _save_dataset(
                         df,
                         download_format,
                         dst_folder.joinpath(filename),
@@ -180,7 +119,7 @@ def _thread_task(
     http: PoolManager, id: str, url: str, cfg: CKANDownloadConfig, client: CKAN
 ):
     # try to get the size of the file
-    response = http.request("HEAD", url)
+    response = http.request("HEAD", url, **cfg.connection_pool_kw)
 
     content_length = response.headers.get("Content-Length")
 
@@ -189,11 +128,11 @@ def _thread_task(
         raise Exception(f"[URL:{url}][error:large content-length]")
 
     # download all the resource data at once
-    data = http.request("GET", url).data
+    data = http.request("GET", url, **cfg.connection_pool_kw).data
 
     # try each method to get the data
     download_methods = [csv]
-    if cfg.accept_zip:
+    if cfg.accept_zip_files:
         download_methods += [zip]
 
     errors = []
@@ -207,14 +146,14 @@ def _thread_task(
                 id,
                 cfg.datasets_folder_path,
                 cfg.download_format,
-                cfg.read_dataset_kwargs,
+                cfg.load_dataset_kwargs,
                 cfg.save_dataset_kwargs,
             )
             success = True
             break
         except KeyboardInterrupt as e:
             raise e
-        except AssertionError:
+        except (IsHTMLError, IsZIPError):
             continue
         except Exception as e:
             errors.append(
@@ -245,7 +184,10 @@ def _process_task(
             position=os.getpid() % cfg.max_process_workers + 1,
         )
 
-    http = PoolManager(cfg.max_thread_workers, cfg.headers)
+    http = PoolManager(
+        cfg.max_thread_workers,
+        cfg.http_headers,  # , **cfg.connection_pool_kw
+    )
 
     success_count = 0
     start_t = time.time()
@@ -329,22 +271,26 @@ def fetch_metadata(
 
     # parameter names for CKAN package_search method
     # other functions may require offset and limit
-    metadata = client.package_search(start=0, rows=0, **cfg.search_filters)
+    metadata = client.package_search(start=0, rows=0, **cfg.package_search_filters)
 
     # the total number of packages in the current CKAN domain
     # we will fetch all the available resources metadata from there
-    packages_count = min(metadata["result"]["count"], cfg.rows)
+    packages_count = min(metadata["result"]["count"], cfg.max_datasets)
 
-    start = cfg.start
+    start = cfg.from_dataset_index
 
     for interval in tqdm(
-        range(0, packages_count, cfg.batch),
-        total=packages_count // cfg.batch,
+        range(0, packages_count, cfg.batch_fetch_metadata),
+        total=packages_count // cfg.batch_fetch_metadata,
         desc="Fetching resources metadata: ",
         disable=not cfg.verbose,
     ):
-        metadata = client.package_search(start=start, rows=cfg.batch)
-        start += cfg.batch
+        try:
+            metadata = client.package_search(start=start, rows=cfg.batch_fetch_metadata)
+            start += cfg.batch_fetch_metadata
+        except Exception as e:
+            print(f"Failed fetch metadata at {start=}: {e}")
+            continue
 
         packages = metadata["result"]["results"]
 
@@ -402,21 +348,26 @@ def fetch_metadata(
 
 
 def ckan_download_datasets(cfg: CKANDownloadConfig, client: CKAN):
-    cfg.log_folder_path = cfg.download_dst.joinpath(
+    cfg.log_folder_path = cfg.download_destination.joinpath(
         "log", "download", time.strftime("%y%m%d_%H_%M_%S")
     )
     cfg.log_folder_path.mkdir(parents=True, exist_ok=True)
 
-    cfg.datasets_folder_path = cfg.download_dst.joinpath(
+    cfg.datasets_folder_path = cfg.download_destination.joinpath(
         "datasets", cfg.download_format
     )
     cfg.datasets_folder_path.mkdir(parents=True, exist_ok=True)
 
-    rsc_url_path = cfg.download_dst.joinpath("metadata", "rsc_url.json")
-    cfg.metadata_path = cfg.download_dst.joinpath("metadata", "metadata.json")
+    rsc_url_path = cfg.download_destination.joinpath("metadata", "rsc_url.json")
+    cfg.metadata_path = cfg.download_destination.joinpath("metadata", "metadata.json")
     cfg.metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
-    rsc_url, metadata = fetch_metadata(cfg, client)
+    if False and not rsc_url_path.exists():
+        with open(rsc_url_path, "r") as file:
+            rsc_url = json.load(file)
+    else:
+        rsc_url, metadata = fetch_metadata(cfg, client)
+
     if cfg.save_metadata:
         with open(cfg.metadata_path, "w") as file:
             json.dump(metadata, file, indent=4)

@@ -3,62 +3,14 @@ import os
 import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from pathlib import Path
-from typing import Literal
 
 from tqdm import tqdm
 
 from ulod.socrata.socrata import SocrataClient
+from ulod.bulk.configurations import SocrataDownloadConfig
 from ulod.bulk.utils import init_logger
 
 warnings.filterwarnings("ignore")
-
-
-class SocrataDownloadConfig:
-    def __init__(
-        self,
-        download_dst: Path,
-        max_datasets: int = 10,
-        from_dataset_index: int = 0,
-        download_format: Literal["csv", "parquet", "json"] = "csv",
-        save_metadata: bool = True,
-        engine: Literal["pandas", "polars"] = "pandas",
-        cast_datatypes: bool = False,
-        max_rows_per_dataset: int = 1000,
-        batch_rows_per_dataset: int = 1000,
-        max_process_workers: int = 1,
-        max_thread_workers: int = 1,
-        verbose: bool = False,
-    ) -> None:
-        self.max_datasets = max_datasets
-        self.from_dataset_index = from_dataset_index
-
-        assert download_format in ["csv", "parquet", "json"], (
-            f"Invalid download format: {download_format}"
-        )
-        self.download_format = download_format
-        if not download_dst.exists():
-            raise FileNotFoundError(f"Directory doesn't exist: {download_dst}")
-        self.download_dst = download_dst
-        self.log_folder_path: Path
-        self.datasets_folder_path: Path
-        self.metadata_path: Path
-
-        self.save_metadata = save_metadata
-
-        self.engine = engine
-        if self.engine != "pandas":
-            raise NotImplementedError()
-
-        self.cast_datatypes = cast_datatypes
-        self.max_rows_per_dataset = max_rows_per_dataset
-        self.batch_rows_per_dataset = min(max_rows_per_dataset, batch_rows_per_dataset)
-
-        self.max_process_workers = max_process_workers
-        self.max_thread_workers = max_thread_workers
-
-        self.verbose = verbose
-        self._pbars = {}
 
 
 def _thread_task(metadata: dict, cfg: SocrataDownloadConfig, client: SocrataClient):
@@ -175,17 +127,17 @@ def fetch_metadata(cfg: SocrataDownloadConfig, client: SocrataClient):
 
 
 def socrata_download_datasets(cfg: SocrataDownloadConfig, client: SocrataClient):
-    cfg.log_folder_path = cfg.download_dst.joinpath(
-        "log", "download", time.strftime("%y%m%d_%H_%M_%S")
+    cfg.log_folder_path = (
+        cfg.download_destination / "log" / "download" / time.strftime("%y%m%d_%H_%M_%S")
     )
     cfg.log_folder_path.mkdir(parents=True, exist_ok=True)
 
-    cfg.datasets_folder_path = cfg.download_dst.joinpath(
-        "datasets", cfg.download_format
+    cfg.datasets_folder_path = (
+        cfg.download_destination / "datasets" / cfg.download_format
     )
     cfg.datasets_folder_path.mkdir(parents=True, exist_ok=True)
 
-    cfg.metadata_path = cfg.download_dst.joinpath("metadata", "metadata.json")
+    cfg.metadata_path = cfg.download_destination / "metadata" / "metadata.json"
     cfg.metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
     metadata = fetch_metadata(cfg, client)

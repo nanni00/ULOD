@@ -1,172 +1,138 @@
 import json
 import os
 import time
-import zipfile
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from io import BytesIO
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from typing import Callable, Optional
-
-import pandas as pd
 from tqdm import tqdm
-from urllib3 import PoolManager
+from urllib3 import HTTPResponse, PoolManager
 
-
-from ulod.ckan import CKAN
-from ulod.utils.exceptions import IsHTMLError, IsZIPError
 from ulod.bulk.configurations import CKANDownloadConfig
 from ulod.bulk.utils import init_logger
+from ulod.ckan import CKAN
+from ulod.utils.exceptions import (
+    HTTPResourceError,
+    TooLargeResourceError,
+)
+
+# def zip(
+#     url: str,
+#     data: bytes,
+#     resource_id: str,
+#     download_dst: Path,
+#     download_format: str,
+#     read_dataset_kwargs: dict = {},
+#     save_dataset_kwargs: dict = {},
+# ):
+#     """
+#     Extract all the content from the given input data as it is a ZIP archive.
+#     A new directory is created on top of the download destination, and all the
+#     files and sub-folders from the archive are extracted there.
+#     """
+#     dst_folder = download_dst.joinpath(resource_id)
+#     dst_folder.mkdir(parents=True, exist_ok=True)
+#     with zipfile.ZipFile(BytesIO(data), "r") as zip:
+#         # we don't use zip.extractall() as suggested by the documentation
+#         # https://docs.python.org/3/library/zipfile.html#zipfile.ZipFile.extractall
+#         for filename in zip.namelist():
+#             if not filename.endswith(".csv"):
+#                 continue
+#             elif "metadata" in filename.lower():
+#                 zip.extract(filename, dst_folder)
+#             else:
+#                 with zip.open(filename) as csv_file:
+#                     df = pd.read_csv(csv_file, **read_dataset_kwargs)
+#                     _save_dataset(
+#                         df,
+#                         download_format,
+#                         dst_folder.joinpath(filename),
+#                         save_dataset_kwargs,
+#                     )
+#     try:
+#         dst_folder.rmdir()
+#     except OSError:
+#         pass
 
 
-def _save_dataset(
-    df: pd.DataFrame,
-    download_format: str,
-    download_dst: Path,
-    save_dataset_kwargs: dict = {},
+def stream_zip_to_disk(
+    response: HTTPResponse, initial_bytes: bytes, download_destination: Path
 ):
-    match download_format:
-        case "csv":
-            df.to_csv(download_dst, **save_dataset_kwargs)
-        case "parquet":
-            df.to_parquet(download_dst, **save_dataset_kwargs)
-        case "json":
-            df.to_json(download_dst, **save_dataset_kwargs)
+    raise NotImplementedError()
 
 
-# TODO: encapsulate csv() and zip() into a more generale "foo_get_data()",
-# with some more customization options, also on post-processing dataframe,
-# that can be defined by the user and passed as argument into the main config
-# before storing (like filter empty rows, check for min/max heigth/width/area, ...)
-def csv(
-    url: str,
-    data: bytes,
+def stream_data_to_disk(
+    response: HTTPResponse,
     resource_id: str,
-    download_dst: Path,
+    download_destination: Path,
     download_format: str,
-    read_dataset_kwargs: dict = {},
-    save_dataset_kwargs: dict = {},
-    post_process_df: Optional[Callable] = None,
+    chunk_size: int = 65536,
 ):
-    """
-    Read a CSV file from the given input data. If the file name terminates
-    with ".zip" of it is identified the string "DOCTYPE" in its first characters,
-    then the data is recognized as not valid and terminate.
+    # initial_bytes = response.read(chunk_size)
+    # zip_signature_bytes = b"\x50\x4b\x03\0x04"
 
-    The data will be read and stored with the specified options, if the download
-    format is valid
-    """
-    # sometimes the data are encoded, sometimes not
-    # and we do not want to start reading zip files here
-    if url.endswith(".zip"):
-        raise IsZIPError(url)
+    # if initial_bytes[:4] == zip_signature_bytes:
+    #    stream_zip_to_disk(response, initial_bytes, download_destination)
 
-    init_bytes = data[:100].decode("latin-1")
-    if "DOCTYPE" in init_bytes or "<html>" in init_bytes:
-        raise IsHTMLError(init_bytes)
+    download_destination = download_destination.joinpath(
+        f"{resource_id}.{download_format}"
+    )
 
-    download_dst = download_dst.joinpath(f"{resource_id}.{download_format}")
+    # We download each resource into a "download_format/" folder
+    # In some cases, resources have names like city-council/2021/resource.csv
+    # and if we try to write to that file, we have a error since the path
+    # "city-council/2021" is not found. Thus, we first create it if needed.
+    download_destination.parent.mkdir(parents=True, exist_ok=True)
 
-    if download_dst.parent.name != download_format:
-        # this should mean that the file is contained into another folder
-        download_dst.parent.mkdir(parents=True, exist_ok=True)
+    with open(download_destination, "wb") as file:
+        # Write also the initial bytes used for ZIP check
+        # file.write(initial_bytes)
 
-    df = pd.read_csv(BytesIO(data), **read_dataset_kwargs)
-
-    _save_dataset(df, download_format, download_dst, save_dataset_kwargs)
-
-
-def zip(
-    url: str,
-    data: bytes,
-    resource_id: str,
-    download_dst: Path,
-    download_format: str,
-    read_dataset_kwargs: dict = {},
-    save_dataset_kwargs: dict = {},
-):
-    """
-    Extract all the content from the given input data as it is a ZIP archive.
-    A new directory is created on top of the download destination, and all the
-    files and sub-folders from the archive are extracted there.
-    """
-    dst_folder = download_dst.joinpath(resource_id)
-    dst_folder.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(BytesIO(data), "r") as zip:
-        # we don't use zip.extractall() as suggested by the documentation
-        # https://docs.python.org/3/library/zipfile.html#zipfile.ZipFile.extractall
-        for filename in zip.namelist():
-            if not filename.endswith(".csv"):
-                continue
-            elif "metadata" in filename.lower():
-                zip.extract(filename, dst_folder)
-            else:
-                with zip.open(filename) as csv_file:
-                    df = pd.read_csv(csv_file, **read_dataset_kwargs)
-                    _save_dataset(
-                        df,
-                        download_format,
-                        dst_folder.joinpath(filename),
-                        save_dataset_kwargs,
-                    )
-    try:
-        dst_folder.rmdir()
-    except OSError:
-        pass
+        # Read and write in chunks (e.g., 64KB at a time)
+        for chunk in response.stream(chunk_size):
+            file.write(chunk)
+    response.release_conn()
 
 
 def _thread_task(
-    http: PoolManager, id: str, url: str, cfg: CKANDownloadConfig, client: CKAN
+    metadata: list[tuple[str, str]], cfg: CKANDownloadConfig, client: CKAN
 ):
-    # try to get the size of the file
-    response = http.request("HEAD", url, **cfg.connection_pool_kw)
-
-    content_length = response.headers.get("Content-Length")
-
-    # Accept files with limited size
-    if content_length and int(content_length) > cfg.max_resource_size:
-        raise Exception(f"[URL:{url}][error:large content-length]")
-
-    # download all the resource data at once
-    data = http.request("GET", url, **cfg.connection_pool_kw).data
-
-    # try each method to get the data
-    download_methods = [csv]
-    if cfg.accept_zip_files:
-        download_methods += [zip]
-
+    http = PoolManager(headers=cfg.http_headers)
     errors = []
+    success_count = 0
 
-    success = False
-    for method in download_methods:
+    for resource_id, url in metadata:
         try:
-            method(
+            response = http.request(
+                "GET",
                 url,
-                data,
-                id,
+                preload_content=False,
+                decode_content=False,
+                **cfg.connection_pool_kw,
+            )
+
+            if response.status >= 400:
+                raise HTTPResourceError(url, response.status)
+
+            # Accept files with limited size
+            content_length = response.headers.get("Content-Length")
+            if content_length and int(content_length) > cfg.max_resource_size:
+                raise TooLargeResourceError(
+                    url, int(content_length), cfg.max_resource_size
+                )
+
+            stream_data_to_disk(
+                response,  # ty: ignore
+                resource_id,
                 cfg.datasets_folder_path,
                 cfg.download_format,
-                cfg.load_dataset_kwargs,
-                cfg.save_dataset_kwargs,
             )
-            success = True
-            break
-        except KeyboardInterrupt as e:
-            raise e
-        except (IsHTMLError, IsZIPError):
-            continue
+            success_count += 1
         except Exception as e:
-            errors.append(
-                f"[method:{method.__name__}][error-type:{type(e)}][error:{str(e)}]"
-            )
-
-    if cfg.verbose:
-        cfg._pbars[os.getpid()].update()
-
-    if success:
-        errors.clear()
-
-    return success, errors
+            errors.append(f"[TYPE:{type(e)}][error:{str(e)}][URL:{url}]")
+        finally:
+            if cfg.verbose:
+                cfg._pbars[os.getpid()].update()
+    return success_count, errors
 
 
 def _process_task(
@@ -182,34 +148,30 @@ def _process_task(
             desc=f"Process {os.getpid()}: ",
             leave=False,
             position=os.getpid() % cfg.max_process_workers + 1,
+            # lock_args=(False,),
         )
 
-    http = PoolManager(
-        cfg.max_thread_workers,
-        cfg.http_headers,  # , **cfg.connection_pool_kw
-    )
+    packages_per_thread = max(len(metadata) // cfg.max_thread_workers, 1)
+
+    work = [
+        metadata[i : i + packages_per_thread]
+        for i in range(0, len(metadata), packages_per_thread)
+    ]
 
     success_count = 0
     start_t = time.time()
     with ThreadPoolExecutor(cfg.max_thread_workers) as executor:
-        futures = {
-            (
-                executor.submit(_thread_task, http, resource_id, url, cfg, client),
-                resource_id,
-                url,
-            )
-            for resource_id, url in metadata
-        }
+        futures = {executor.submit(_thread_task, task, cfg, client) for task in work}
 
-        for future, resource_id, url in futures:
+        for future in as_completed(futures):
             try:
                 success, errors = future.result(timeout=60)
                 success_count += success
 
                 for e in errors:
-                    logger.error(f"[URL:{url}][TYPE:{type(e)}][MSG:{e}]")
+                    logger.error(e)
             except Exception as e:
-                logger.error(f"[URL:{url}][TYPE:{type(e)}][MSG:{str(e)}]")
+                logger.error(f"[TYPE:{type(e)}][MSG:{str(e)}]")
     download_t = round(time.time() - start_t)
 
     if cfg.verbose:
@@ -243,7 +205,7 @@ def download_tabular_resources(
         success_count = 0
 
         for future in tqdm(
-            futures, desc="Fetching resources: ", disable=not cfg.verbose
+            as_completed(futures), desc="Fetching resources: ", total=len(work),  disable=not cfg.verbose
         ):
             try:
                 success_count += future.result()
@@ -362,9 +324,12 @@ def ckan_download_datasets(cfg: CKANDownloadConfig, client: CKAN):
     cfg.metadata_path = cfg.download_destination.joinpath("metadata", "metadata.json")
     cfg.metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if False and not rsc_url_path.exists():
+    if rsc_url_path.exists():
         with open(rsc_url_path, "r") as file:
             rsc_url = json.load(file)
+        with open(cfg.metadata_path, "r") as file:
+            metadata = json.load(file)
+
     else:
         rsc_url, metadata = fetch_metadata(cfg, client)
 

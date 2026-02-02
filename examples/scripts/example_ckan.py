@@ -1,10 +1,13 @@
 import argparse
 import os
+import sys
 import re
 from pathlib import Path
 from typing import Any
 
 from fake_useragent import UserAgent
+
+sys.path.append(str(Path(__file__, "..", "..", "..", "src").resolve()))
 
 ua = UserAgent()
 
@@ -137,7 +140,7 @@ def uk_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
     from ulod.ckan import UKCKAN
 
-    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk")
+    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk_v2")
     download_destination.mkdir(parents=True, exist_ok=True)
 
     client = UKCKAN(headers=headers, connection_kw=connection_pool_kw)
@@ -156,8 +159,8 @@ def uk_all():
         accept_zip_files=False,
         engine="pandas",
         connection_pool_kw=connection_pool_kw,
-        max_resource_size=2**26,
-        max_process_workers=4,
+        max_resource_size=2**27,
+        max_process_workers=8,
         max_thread_workers=4,
         verbose=True,
     )
@@ -185,8 +188,10 @@ def modena_all():
         load_dataset_kwargs=read_dataset_kwargs,
         save_dataset_kwargs=save_csv_kwargs,
         save_with_resource_name=True,
+        accept_zip_files=False,
         engine="pandas",
-        max_resource_size=2**26,
+        connection_pool_kw=connection_pool_kw,
+        max_resource_size=2**27,
         max_process_workers=3,
         max_thread_workers=3,
         verbose=True,

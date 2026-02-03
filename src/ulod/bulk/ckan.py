@@ -44,8 +44,8 @@ def stream_data_to_disk(
             file.write(chunk)
 
 
-def _thread_task(
-    thread_id: int,
+def _executor_task(
+    worker_id: int,
     http: PoolManager,
     metadata: list[tuple[str, str]],
     cfg: CKANDownloadConfig,
@@ -56,9 +56,9 @@ def _thread_task(
     if cfg.verbose:
         _pbar = tqdm(
             metadata,
-            desc=f"Thread {thread_id}",
+            desc=f"Worker {worker_id}",
             leave=False,
-            position=thread_id % cfg.max_thread_workers + 1,
+            position=worker_id % cfg.max_workers + 1,
         )
 
     for resource_id, url in metadata:
@@ -108,7 +108,7 @@ def download_tabular_resources(
     logger.info(" BULK DOWNLOAD STARTED ".center(100, "="))
     logger.info(f"Total resources identified: {len(metadata)}")
 
-    max_workers = cfg.max_thread_workers
+    max_workers = cfg.max_workers
     packages_per_task = len(metadata) // max_workers
 
     work = [
@@ -121,8 +121,8 @@ def download_tabular_resources(
     try:
         with ThreadPoolExecutor(max_workers) as executor:
             futures = {
-                executor.submit(_thread_task, thread_id, http, task, cfg, client)
-                for thread_id, task in enumerate(work)
+                executor.submit(_executor_task, worker_id, http, task, cfg, client)
+                for worker_id, task in enumerate(work)
             }
 
             success_count = 0

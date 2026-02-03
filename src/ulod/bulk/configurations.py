@@ -31,7 +31,7 @@ class CKANDownloadConfig:
             parameter "header".
         max_resource_size: Max resource size as bytes.
         max_process_workers: Max number of concurrent processes.
-        max_thread_workers: Max number of threads per process.
+        max_workers: Max number of threads per process.
     """
 
     download_destination: Path
@@ -58,7 +58,7 @@ class CKANDownloadConfig:
     connection_pool_kw: dict = field(default_factory=dict)
     max_resource_size: int = 2**20
 
-    max_thread_workers: int = 1
+    max_workers: int = 1
 
     # Verbosity
     verbose: bool = True

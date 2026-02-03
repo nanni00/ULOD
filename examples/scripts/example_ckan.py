@@ -1,7 +1,7 @@
 import argparse
 import os
-import sys
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -102,7 +102,7 @@ def canada_sample():
         http_headers=headers,
         accept_zip_files=True,
         max_resource_size=2**25,
-        max_thread_workers=2,
+        max_workers=2,
         verbose=True,
     )
 
@@ -127,7 +127,7 @@ def canada_all():
         http_headers=headers,
         accept_zip_files=True,
         max_resource_size=2**26,
-        max_thread_workers=4,
+        max_workers=4,
         verbose=True,
     )
 
@@ -155,7 +155,7 @@ def uk_all():
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
         max_resource_size=2**27,
-        max_thread_workers=4,
+        max_workers=4,
         verbose=True,
     )
 
@@ -183,7 +183,7 @@ def uk_sample():
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
         max_resource_size=2**27,
-        max_thread_workers=8,
+        max_workers=8,
         verbose=True,
     )
 
@@ -211,7 +211,7 @@ def modena_all():
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
         max_resource_size=2**27,
-        max_thread_workers=1,
+        max_workers=1,
         verbose=True,
     )
 
@@ -239,7 +239,7 @@ def ferrara_all():
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
         max_resource_size=2**27,
-        max_thread_workers=3,
+        max_workers=3,
         verbose=True,
     )
 

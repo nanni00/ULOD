@@ -136,9 +136,9 @@ def canada_all():
 
 def uk_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.ckan import UKCKAN
+    from ulod.ckan.uk import UKCKAN
 
-    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk_v2")
+    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk")
     download_destination.mkdir(parents=True, exist_ok=True)
 
     client = UKCKAN(headers=headers, connection_kw=connection_pool_kw)
@@ -164,7 +164,7 @@ def uk_all():
 
 def uk_sample():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.ckan import UKCKAN
+    from ulod.ckan.uk import UKCKAN
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk")
     download_destination.mkdir(parents=True, exist_ok=True)
@@ -183,6 +183,35 @@ def uk_sample():
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
         max_resource_size=2**27,
+        max_workers=8,
+        verbose=True,
+    )
+
+    ckan_download_datasets(download_cfg, client)
+
+
+def nhs_uk_sample():
+    from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
+    from ulod.ckan.uk import NHSUKCKAN
+
+    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "nhs_uk")
+    download_destination.mkdir(parents=True, exist_ok=True)
+
+    connection_pool_kw.update({"timeout": 20})
+    client = NHSUKCKAN(headers=headers, connection_kw=connection_pool_kw)
+
+    download_cfg = CKANDownloadConfig(
+        download_destination,
+        max_datasets=500,
+        from_dataset_index=0,
+        batch_fetch_metadata=100,
+        filter_resource_metadata=_uk_filter_resource_metadata,
+        download_format="csv",
+        http_headers=headers,
+        save_with_resource_name=True,
+        accept_zip_files=False,
+        connection_pool_kw=connection_pool_kw,
+        max_resource_size=2**26,
         max_workers=8,
         verbose=True,
     )
@@ -252,7 +281,7 @@ def main():
     # Define positional arguments
     parser.add_argument(
         "location",
-        choices=["canada", "uk", "modena", "ferrara"],
+        choices=["canada", "uk", "nhs-uk", "modena", "ferrara"],
         help="Target location",
     )
     parser.add_argument("mode", choices=["all", "sample"], help="Download mode")
@@ -265,6 +294,7 @@ def main():
         ("canada", "sample"): canada_sample,
         ("uk", "all"): uk_all,
         ("uk", "sample"): uk_sample,
+        ("nhs-uk", "sample"): nhs_uk_sample,
         ("modena", "all"): modena_all,
         ("ferrara", "all"): ferrara_all,
     }

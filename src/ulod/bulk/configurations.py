@@ -45,12 +45,7 @@ class CKANDownloadConfig:
     package_search_filters: dict = field(default_factory=dict)
 
     # Engine & Formats
-    engine: Literal["pandas", "polars"] = "pandas"
     download_format: Literal["csv", "parquet", "json"] = "csv"
-
-    # Kwargs for data libraries
-    load_dataset_kwargs: dict = field(default_factory=dict)
-    save_dataset_kwargs: dict = field(default_factory=dict)
 
     # Boolean flags
     save_with_resource_name: bool = True
@@ -63,7 +58,6 @@ class CKANDownloadConfig:
     connection_pool_kw: dict = field(default_factory=dict)
     max_resource_size: int = 2**20
 
-    max_process_workers: int = 1
     max_thread_workers: int = 1
 
     # Verbosity
@@ -81,13 +75,6 @@ class CKANDownloadConfig:
             raise FileNotFoundError(
                 f"Download destination folder doesn't exist: {self.download_destination.resolve()}"
             )
-
-        # Matching the 'NotImplementedError' from your old class
-        if self.engine != "pandas":
-            raise NotImplementedError("Only 'pandas' engine is currently supported.")
-
-        # Internal state initialization (from your old _pbars)
-        self._pbars: dict = {}
 
         # ... existing validation ...
         self.datasets_folder_path = self.download_destination / "datasets"
@@ -114,8 +101,8 @@ class SocrataDownloadConfig:
     # Networking and Concurrency
     max_rows_per_dataset: int = 1000
     batch_rows_per_dataset: int = 1000
-    max_process_workers: int = 1
-    max_thread_workers: int = 1
+    max_datasets_per_worker: int = 100
+    max_workers: int = 1
 
     # Verbosity
     verbose: bool = False
@@ -127,11 +114,11 @@ class SocrataDownloadConfig:
                 f"Directory doesn't exist: {self.download_destination}"
             )
 
-        # 2. Engine validation
-        if self.engine != "pandas":
-            raise NotImplementedError(
-                "Only 'pandas' engine is currently supported for Socrata."
-            )
+        # # 2. Engine validation
+        # if self.engine != "pandas":
+        #     raise NotImplementedError(
+        #         "Only 'pandas' engine is currently supported for Socrata."
+        #     )
 
         # 3. Dynamic logic: batch_rows_per_dataset cannot exceed max_rows_per_dataset
         self.batch_rows_per_dataset = min(

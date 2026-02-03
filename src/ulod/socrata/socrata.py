@@ -106,27 +106,20 @@ class SocrataClient:
         """
         data = self.get_dataset(id, format="json", batch_size=batch_size, **kwargs)
 
-        cast_datatypes = (
-            cast_datatypes if cast_datatypes and resource_metadata else False
-        )
         datatypes = []
-        dtypes_cast = {}
+        dtypes_mapping = {}
         columns = None
 
-        if cast_datatypes:
-            if not resource_metadata:
-                resource_metadata = self.get_dataset_metadata(id)
-                columns = resource_metadata["columns"]
-            else:
-                resource_metadata = resource_metadata["resource"]
-                columns = (
-                    {"fieldName": name, "dataTypeName": dtype, "format": format}
-                    for name, dtype, format in zip(
-                        resource_metadata["columns_field_name"],
-                        resource_metadata["columns_datatype"],
-                        resource_metadata["columns_format"],
-                    )
+        if cast_datatypes and resource_metadata:
+            resource_metadata = resource_metadata["resource"]
+            columns = (
+                {"fieldName": name, "dataTypeName": dtype, "format": format_}
+                for name, dtype, format_ in zip(
+                    resource_metadata["columns_field_name"],
+                    resource_metadata["columns_datatype"],
+                    resource_metadata["columns_format"],
                 )
+            )
 
             datatypes = [
                 {
@@ -137,19 +130,16 @@ class SocrataClient:
                 for column in columns
             ]
 
-            dtypes_cast = cast_socrata_types(datatypes, engine)
+            dtypes_mapping = cast_socrata_types(datatypes, engine)
 
         match engine:
-            case "polars":
-                df = pl.from_records(data, dtypes_cast)
-
             case "pandas":
                 if cast_datatypes:
-                    columns = list(dtypes_cast.keys())
-                df = pd.DataFrame(data, None, columns)
+                    columns = list(dtypes_mapping.keys())
+                df = pd.DataFrame(data, None, columns)  # ty: ignore
 
                 if cast_datatypes:
-                    for column, dtype in dtypes_cast.items():
+                    for column, dtype in dtypes_mapping.items():
                         if dtype.startswith("date"):
                             df[column] = pd.to_datetime(df[column], format="mixed")
                         elif dtype in ["integer", "float"]:
@@ -160,7 +150,12 @@ class SocrataClient:
                             df = df.astype(
                                 {column: dtype},
                             )
-
+            case "polars":
+                # print(dtypes_cast)
+                # print(data[:5])
+                df = pl.DataFrame(
+                    data, dtypes_mapping, orient="row", infer_schema_length=None
+                )
         return df
 
     def get_and_store_dataset(
@@ -202,24 +197,23 @@ class SocrataClient:
             id, engine, cast_datatypes, resource_metadata, batch_size, **kwargs
         )
 
-        match engine:
-            case "polars":
-                match store_format:
-                    case "csv":
-                        df.write_csv(file_name)
-                    case "parquet":
-                        df.write_parquet(file_name)
-                    case "json":
-                        df.write_json(file_name)
+        if isinstance(df, pl.DataFrame):
+            match store_format:
+                case "csv":
+                    df.write_csv(file_name)
+                case "parquet":
+                    df.write_parquet(file_name)
+                case "json":
+                    df.write_json(file_name)
 
-            case "pandas":
-                match store_format:
-                    case "csv":
-                        df.to_csv(file_name, index=False)
-                    case "parquet":
-                        df.to_parquet(file_name, index=False)
-                    case "json":
-                        df.to_json(file_name, index=False)
+        elif isinstance(df, pd.DataFrame):
+            match store_format:
+                case "csv":
+                    df.to_csv(file_name, index=False)
+                case "parquet":
+                    df.to_parquet(file_name, index=False)
+                case "json":
+                    df.to_json(file_name, index=False)
 
         if return_dataframe:
             return df

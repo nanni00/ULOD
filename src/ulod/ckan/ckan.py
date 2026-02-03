@@ -33,12 +33,9 @@ class CKAN:
 
     def _make_request(self, url: str):
         """ "Do a GET request"""
-        # response = requests.get(url, headers=self.headers, **self.connection_kw)
         response = urllib3.request(
             "GET", url, headers=self.headers, **self.connection_kw
         )
-
-        assert response.status == 200, f"Failure with URL: {url}, {response.data}"
 
         return response.json()
 

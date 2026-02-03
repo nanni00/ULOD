@@ -1,6 +1,6 @@
 [project]
 name = "ulod"
-version = "0.1.0"
+version = "0.2.0"
 
 authors = [
   { name = "Giovanni Malaguti", email = "giovanni.malaguti00@gmail.com" },
@@ -12,6 +12,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
   "beautifulsoup4>=4.14.3",
+  "dotenv>=0.9.9",
   "fake-useragent>=2.2.0",
   "fastexcel>=0.18.0",
   "pandas>=2.3.3",

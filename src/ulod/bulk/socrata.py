@@ -2,78 +2,52 @@ import json
 import os
 import time
 import warnings
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
 
 from tqdm import tqdm
 
-from ulod.socrata.socrata import SocrataClient
 from ulod.bulk.configurations import SocrataDownloadConfig
 from ulod.bulk.utils import init_logger
+from ulod.socrata.socrata import SocrataClient
 
 warnings.filterwarnings("ignore")
 
 
-def _thread_task(metadata: dict, cfg: SocrataDownloadConfig, client: SocrataClient):
-    dataset_id = metadata["resource"]["id"]
-
-    client.get_and_store_dataset(
-        dataset_id,
-        cfg.datasets_folder_path,
-        cfg.download_format,
-        cfg.engine,
-        cfg.cast_datatypes,
-        metadata,
-        limit=cfg.max_rows_per_dataset,
-        batch_size=cfg.batch_rows_per_dataset,
-    )
-
-    if cfg.verbose:
-        cfg._pbars[os.getpid()].update()
-
-    return True
-
-
-def _process_task(
-    metadata: list[dict], cfg: SocrataDownloadConfig, client: SocrataClient
+def _executor_task(
+    worker_id: int,
+    metadata: list[dict],
+    cfg: SocrataDownloadConfig,
+    client: SocrataClient,
 ):
-    logger, listener = init_logger(cfg.log_folder_path)
-    listener.start()
-    logger.info("[PROCESS STARTED]")
-
     if cfg.verbose:
-        cfg._pbars[os.getpid()] = tqdm(
+        _pbar = tqdm(
             metadata,
-            desc=f"Process {os.getpid()}: ",
+            desc=f"Worker {worker_id}",
             leave=False,
-            position=os.getpid() % cfg.max_process_workers + 1,
+            position=worker_id + 1,
         )
 
     success_count = 0
-    start_t = time.time()
-    with ThreadPoolExecutor(cfg.max_thread_workers) as executor:
-        futures = {
-            (executor.submit(_thread_task, task, cfg, client), task["resource"]["id"])
-            for task in metadata
-        }
+    errors = []
 
-        for future, dataset_id in futures:
-            try:
-                future.result(timeout=60)
-                success_count += 1
-            except Exception as e:
-                e_str = str(e).replace("\n", " ")
-                logger.error(
-                    f"[DATASET_ID:{dataset_id}][MSG:{e_str}][TYPE(exc):{type(e)}]"
-                )
-    download_t = round(time.time() - start_t)
-
-    if cfg.verbose:
-        cfg._pbars[os.getpid()].close()
-
-    logger.info(f"[TOTAL DOWNLOADS:{success_count}/{len(metadata)}]")
-    logger.info(f"[TOTAL TIME: {download_t}s")
-    logger.info("[PROCESS COMPLETED]")
-    listener.stop()
+    for resource_metadata in metadata:
+        try:
+            dataset_id = resource_metadata["resource"]["id"]
+            client.get_and_store_dataset(
+                dataset_id,
+                cfg.datasets_folder_path,
+                cfg.download_format,
+                cfg.engine,
+                cfg.cast_datatypes,
+                resource_metadata,
+                limit=cfg.max_rows_per_dataset,
+                batch_size=cfg.batch_rows_per_dataset,
+            )
+            success_count += 1
+        except Exception as e:
+            errors.append(f"[DATASET:{dataset_id}][ERROR:{e}][TYPE:{type(e)}]")
+        finally:
+            _pbar.update()
     return success_count
 
 
@@ -84,37 +58,48 @@ def download_tabular_resources(
     listener.start()
     logger.info(" BULK DOWNLOAD STARTED ".center(100, "="))
 
-    packages_per_process = len(metadata) // cfg.max_process_workers
+    max_workers = cfg.max_workers
+    packages_per_worker = min(len(metadata) // max_workers, cfg.max_datasets_per_worker)
 
     work = [
-        metadata[i : i + packages_per_process]
-        for i in range(0, len(metadata), packages_per_process)
+        metadata[i : i + packages_per_worker]
+        for i in range(0, len(metadata), packages_per_worker)
     ]
 
-    with ProcessPoolExecutor(cfg.max_process_workers) as executor:
-        futures = {
-            executor.submit(
-                _process_task,
-                task,
-                cfg,
-                client,
-            )
-            for task in work
-        }
+    try:
+        with ThreadPoolExecutor(max_workers) as executor:
+            futures = {
+                executor.submit(
+                    _executor_task,
+                    worker_id % max_workers,
+                    task,
+                    cfg,
+                    client,
+                )
+                for worker_id, task in enumerate(work)
+            }
 
-        success_count = 0
+            success_count = 0
 
-        for future in tqdm(
-            futures, desc="Fetching resources: ", disable=not cfg.verbose
-        ):
-            try:
-                success_count += future.result()
-            except Exception as e:
-                logger.error(e)
-
-    logger.info(f"[TOTAL DOWNLOADS:{success_count}/{len(metadata)}]")
-    logger.info(" BULK DOWNLOAD COMPLETED ".center(100, "="))
-    listener.stop()
+            for future in tqdm(
+                as_completed(futures),
+                desc="Datasets",
+                total=len(futures),
+                disable=not cfg.verbose,
+            ):
+                try:
+                    n_success, errors = future.result()
+                    success_count += n_success
+                    for err in errors:
+                        logger.error(err)
+                except KeyError:
+                    raise KeyError()
+                except Exception as e:
+                    logger.error(e)
+    finally:
+        logger.info(f"[TOTAL DOWNLOADS:{success_count}/{len(metadata)}]")
+        logger.info(" BULK DOWNLOAD COMPLETED ".center(100, "="))
+        listener.stop()
     return work, success_count
 
 

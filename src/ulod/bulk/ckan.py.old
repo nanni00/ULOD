@@ -1,6 +1,7 @@
 import json
+import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from tqdm import tqdm
@@ -14,7 +15,43 @@ from ulod.utils.exceptions import (
     TooLargeResourceError,
 )
 
-SEP = "__"
+# def zip(
+#     url: str,
+#     data: bytes,
+#     resource_id: str,
+#     download_dst: Path,
+#     download_format: str,
+#     read_dataset_kwargs: dict = {},
+#     save_dataset_kwargs: dict = {},
+# ):
+#     """
+#     Extract all the content from the given input data as it is a ZIP archive.
+#     A new directory is created on top of the download destination, and all the
+#     files and sub-folders from the archive are extracted there.
+#     """
+#     dst_folder = download_dst.joinpath(resource_id)
+#     dst_folder.mkdir(parents=True, exist_ok=True)
+#     with zipfile.ZipFile(BytesIO(data), "r") as zip:
+#         # we don't use zip.extractall() as suggested by the documentation
+#         # https://docs.python.org/3/library/zipfile.html#zipfile.ZipFile.extractall
+#         for filename in zip.namelist():
+#             if not filename.endswith(".csv"):
+#                 continue
+#             elif "metadata" in filename.lower():
+#                 zip.extract(filename, dst_folder)
+#             else:
+#                 with zip.open(filename) as csv_file:
+#                     df = pd.read_csv(csv_file, **read_dataset_kwargs)
+#                     _save_dataset(
+#                         df,
+#                         download_format,
+#                         dst_folder.joinpath(filename),
+#                         save_dataset_kwargs,
+#                     )
+#     try:
+#         dst_folder.rmdir()
+#     except OSError:
+#         pass
 
 
 def stream_zip_to_disk(
@@ -30,6 +67,12 @@ def stream_data_to_disk(
     format: str,
     chunk_size: int = 65536,
 ):
+    # initial_bytes = response.read(chunk_size)
+    # zip_signature_bytes = b"\x50\x4b\x03\0x04"
+
+    # if initial_bytes[:4] == zip_signature_bytes:
+    #    stream_zip_to_disk(response, initial_bytes, download_destination)
+
     destination = destination.joinpath(f"{resource_id}.{format}")
 
     # We download each resource into a "download_format/" folder
@@ -39,27 +82,23 @@ def stream_data_to_disk(
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     with open(destination, "wb") as file:
+        # Write also the initial bytes used for ZIP check
+        # file.write(initial_bytes)
+
         # Read and write in chunks (e.g., 64KB at a time)
         for chunk in response.stream(chunk_size):
             file.write(chunk)
 
 
 def _thread_task(
-    thread_id: int,
     http: PoolManager,
     metadata: list[tuple[str, str]],
     cfg: CKANDownloadConfig,
     client: CKAN,
 ):
+    # http = PoolManager(headers=cfg.http_headers)
     errors = []
     success_count = 0
-    if cfg.verbose:
-        _pbar = tqdm(
-            metadata,
-            desc=f"Thread {thread_id}",
-            leave=False,
-            position=thread_id % cfg.max_thread_workers + 1,
-        )
 
     for resource_id, url in metadata:
         response = None
@@ -95,9 +134,66 @@ def _thread_task(
             if response is not None:
                 response.release_conn()
             if cfg.verbose:
-                _pbar.update()
+                cfg._pbars[os.getpid()].update()
 
+    # http.clear()
     return success_count, errors
+
+
+def _process_task(
+    metadata: list[tuple[str, str]], cfg: CKANDownloadConfig, client: CKAN
+):
+    logger, listener = init_logger(cfg.log_folder_path)
+    listener.start()
+    logger.info("[PROCESS STARTED]")
+
+    if cfg.verbose:
+        cfg._pbars[os.getpid()] = tqdm(
+            metadata,
+            desc=f"Process {os.getpid()}",
+            leave=False,
+            position=os.getpid() % cfg.max_process_workers + 1,
+            # lock_args=(False,),
+        )
+
+    packages_per_task = max(len(metadata) // cfg.max_thread_workers, 1)
+
+    work = [
+        metadata[i : i + packages_per_task]
+        for i in range(0, len(metadata), packages_per_task)
+    ]
+
+    try:
+        download_t = time.time()
+        http = PoolManager(headers=cfg.http_headers)
+
+        success_count = 0
+        with ThreadPoolExecutor(cfg.max_thread_workers) as executor:
+            futures = {
+                executor.submit(_thread_task, http, task, cfg, client) for task in work
+            }
+
+            for future in as_completed(futures):
+                try:
+                    success, errors = future.result(timeout=60)
+                    success_count += success
+
+                    for e in errors:
+                        logger.error(e)
+                except Exception as e:
+                    logger.error(f"[TYPE:{type(e)}][MSG:{str(e)}]")
+
+        if cfg.verbose:
+            cfg._pbars[os.getpid()].close()
+
+    finally:
+        http.clear()
+        download_t = round(time.time() - download_t)
+        logger.info(f"[TOTAL DOWNLOADS:{success_count}/{len(metadata)}]")
+        logger.info(f"[TOTAL TIME: {download_t}s]")
+        logger.info("[PROCESS COMPLETED]")
+        listener.stop()
+    return success_count
 
 
 def download_tabular_resources(
@@ -108,46 +204,34 @@ def download_tabular_resources(
     logger.info(" BULK DOWNLOAD STARTED ".center(100, "="))
     logger.info(f"Total resources identified: {len(metadata)}")
 
-    max_workers = cfg.max_thread_workers
-    packages_per_task = len(metadata) // max_workers
+    packages_per_process = len(metadata) // cfg.max_process_workers
 
     work = [
-        metadata[i : i + packages_per_task]
-        for i in range(0, len(metadata), packages_per_task)
+        metadata[i : i + packages_per_process]
+        for i in range(0, len(metadata), packages_per_process)
     ]
 
-    http = PoolManager(headers=cfg.http_headers)
+    with ProcessPoolExecutor(cfg.max_process_workers) as executor:
+        futures = {executor.submit(_process_task, task, cfg, client) for task in work}
 
-    try:
-        with ThreadPoolExecutor(max_workers) as executor:
-            futures = {
-                executor.submit(_thread_task, thread_id, http, task, cfg, client)
-                for thread_id, task in enumerate(work)
-            }
+        success_count = 0
 
-            success_count = 0
+        for future in tqdm(
+            as_completed(futures),
+            desc="Resources",
+            total=len(work),
+            disable=not cfg.verbose,
+        ):
+            try:
+                success_count += future.result()
+            except KeyboardInterrupt as e:
+                raise e
+            except Exception as e:
+                logger.error(str(e))
 
-            for future in tqdm(
-                as_completed(futures),
-                desc="Resources",
-                total=len(work),
-                disable=not cfg.verbose,
-            ):
-                try:
-                    n_success, errors = future.result()
-                    success_count += n_success
-                    for err in errors:
-                        logger.error(err)
-                except KeyboardInterrupt as e:
-                    raise e
-                except Exception as e:
-                    logger.error(str(e))
-    finally:
-        http.clear()
-
-        logger.info(f"[TOTAL DOWNLOADS:{success_count}/{len(metadata)}]")
-        logger.info(" BULK DOWNLOAD COMPLETED ".center(100, "="))
-        listener.stop()
+    logger.info(f"[TOTAL DOWNLOADS:{success_count}/{len(metadata)}]")
+    logger.info(" BULK DOWNLOAD COMPLETED ".center(100, "="))
+    listener.stop()
     return work, success_count
 
 
@@ -156,8 +240,7 @@ def fetch_metadata(
 ) -> tuple[list[tuple[str, str]], list[dict]]:
     """
     Return a list of tuples <resource_id, URL> given by the specified
-    CKAN client. If passed, r
-    esources are filterd through a user function,
+    CKAN client. If passed, resources are filterd through a user function,
     otherwise all identified resources are returned.
     """
     resource_ids_urls = []
@@ -166,8 +249,6 @@ def fetch_metadata(
     # parameter names for CKAN package_search method
     # other functions may require offset and limit
     metadata = client.package_search(start=0, rows=0, **cfg.package_search_filters)
-    if not metadata:
-        raise ValueError("Failed to fetch metadata")
 
     # the total number of packages in the current CKAN domain
     # we will fetch all the available resources metadata from there
@@ -212,12 +293,9 @@ def fetch_metadata(
                     continue
 
                 # clean these two values
-                resource_id = resource_id.replace("/", "-").replace("__", "--")
+                resource_id = resource_id.replace("/", "_")
                 resource_name = (
-                    resource_name.strip()
-                    .replace(" ", "-")
-                    .replace(":", "-")
-                    .replace("__", "--")
+                    resource_name.strip().replace(" ", "-").replace(":", "-")
                     if resource_name
                     else ""
                 )
@@ -225,7 +303,7 @@ def fetch_metadata(
                 package_resource_ids.append(resource_id)
 
                 if cfg.save_with_resource_name and resource_name:
-                    resource_id = f"{resource_name}{SEP}{resource_id}"
+                    resource_id = "{}::{}".format(resource_name, resource_id)
 
                 # NOTE: in some canada records, the URL is partially
                 # correct but needs to be extended with the base url

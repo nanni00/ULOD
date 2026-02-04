@@ -1,3 +1,6 @@
+import wrapt_timeout_decorator
+import os
+import zipfile
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -15,6 +18,8 @@ from ulod.utils.exceptions import (
 )
 
 SEP = "__"
+ZIPFILE_MAGIC_BYTES = b"\x50\x4b\x03\x04"
+XLS_2003_MAGIC_BYTES = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
 
 def stream_zip_to_disk(
@@ -23,6 +28,15 @@ def stream_zip_to_disk(
     raise NotImplementedError()
 
 
+def unzip(zippath: Path):
+    folder = zippath.parent / zippath.stem
+    folder.mkdir(parents=True, exist_ok=True)
+
+    with zipfile.ZipFile(zippath, "r") as zip:
+        zip.extractall(folder, [f for f in zip.namelist() if f.endswith(".csv")])
+
+
+@wrapt_timeout_decorator.timeout(60)
 def stream_data_to_disk(
     response: HTTPResponse,
     resource_id: str,
@@ -30,18 +44,37 @@ def stream_data_to_disk(
     format: str,
     chunk_size: int = 65536,
 ):
-    destination = destination.joinpath(f"{resource_id}.{format}")
+    destination = destination / f"{resource_id}.{format}"
 
     # We download each resource into a "download_format/" folder
     # In some cases, resources have names like city-council/2021/resource.csv
     # and if we try to write to that file, we have a error since the path
     # "city-council/2021" is not found. Thus, we first create it if needed.
     destination.parent.mkdir(parents=True, exist_ok=True)
+    is_zip = False
+    is_xls_2003 = False
 
     with open(destination, "wb") as file:
         # Read and write in chunks (e.g., 64KB at a time)
-        for chunk in response.stream(chunk_size):
+        for i, chunk in enumerate(response.stream(chunk_size)):
+            if i == 0 and chunk[: len(ZIPFILE_MAGIC_BYTES)] == ZIPFILE_MAGIC_BYTES:
+                is_zip = True
+            elif i == 0 and chunk[: len(XLS_2003_MAGIC_BYTES)] == XLS_2003_MAGIC_BYTES:
+                is_xls_2003 = True
+
             file.write(chunk)
+
+    if is_zip:
+        destination = destination.rename(destination.parent / f"{destination.stem}.zip")
+        unzip(destination)
+        os.remove(destination)
+
+        try:
+            os.rmdir(destination.parent / destination.stem)
+        except OSError:
+            pass
+    elif is_xls_2003:
+        destination = destination.rename(destination.parent / f"{destination.stem}.xls")
 
 
 def _executor_task(

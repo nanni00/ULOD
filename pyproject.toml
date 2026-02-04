@@ -1,6 +1,6 @@
 [project]
 name = "ulod"
-version = "0.2.1"
+version = "0.2.2"
 
 authors = [
   { name = "Giovanni Malaguti", email = "giovanni.malaguti00@gmail.com" },
@@ -21,4 +21,5 @@ dependencies = [
   "sodapy>=2.2.0",
   "tqdm>=4.67.1",
   "urllib3>=2.6.2",
+  "wrapt-timeout-decorator>=1.5.1",
 ]

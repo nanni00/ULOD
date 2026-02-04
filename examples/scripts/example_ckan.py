@@ -166,14 +166,14 @@ def uk_sample():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
     from ulod.ckan.uk import UKCKAN
 
-    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk")
+    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk-sample")
     download_destination.mkdir(parents=True, exist_ok=True)
 
     client = UKCKAN(headers=headers, connection_kw=connection_pool_kw)
 
     download_cfg = CKANDownloadConfig(
         download_destination,
-        max_datasets=5000,
+        max_datasets=2000,
         from_dataset_index=5000,
         batch_fetch_metadata=1000,
         filter_resource_metadata=_uk_filter_resource_metadata,
@@ -183,7 +183,7 @@ def uk_sample():
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
         max_resource_size=2**27,
-        max_workers=8,
+        max_workers=20,
         verbose=True,
     )
 

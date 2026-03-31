@@ -275,13 +275,69 @@ def ferrara_all():
     ckan_download_datasets(cfg, client)
 
 
+def milano_all():
+    from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
+    from ulod.ckan.italy import MilanoCKAN
+
+    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "milano")
+    download_destination.mkdir(parents=True, exist_ok=True)
+
+    client = MilanoCKAN(headers=headers, connection_kw=connection_pool_kw)
+
+    cfg = CKANDownloadConfig(
+        download_destination,
+        max_datasets=100,
+        from_dataset_index=0,
+        batch_fetch_metadata=200,
+        filter_resource_metadata=csv_only_filter_resource_metadata,
+        download_format="csv",
+        http_headers=headers,
+        save_with_resource_name=True,
+        accept_zip_files=False,
+        connection_pool_kw=connection_pool_kw,
+        max_resource_size=2**28,
+        max_workers=1,
+        verbose=True,
+    )
+
+    ckan_download_datasets(cfg, client)
+
+
+def madrid_all():
+    from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
+    from ulod.ckan.spain import MadridCKAN
+
+    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "madrid")
+    download_destination.mkdir(parents=True, exist_ok=True)
+
+    client = MadridCKAN(headers=headers, connection_kw=connection_pool_kw)
+
+    cfg = CKANDownloadConfig(
+        download_destination,
+        max_datasets=3000,
+        from_dataset_index=0,
+        batch_fetch_metadata=200,
+        filter_resource_metadata=csv_only_filter_resource_metadata,
+        download_format="csv",
+        http_headers=headers,
+        save_with_resource_name=True,
+        accept_zip_files=False,
+        connection_pool_kw=connection_pool_kw,
+        max_resource_size=2**28,
+        max_workers=3,
+        verbose=True,
+    )
+
+    ckan_download_datasets(cfg, client)
+
+
 def main():
     parser = argparse.ArgumentParser(description="CKAN bulk downloads examples CLI")
 
     # Define positional arguments
     parser.add_argument(
         "location",
-        choices=["canada", "uk", "nhs-uk", "modena", "ferrara"],
+        choices=["canada", "uk", "nhs-uk", "modena", "ferrara", "milano", "madrid"],
         help="Target location",
     )
     parser.add_argument("mode", choices=["all", "sample"], help="Download mode")
@@ -297,6 +353,8 @@ def main():
         ("nhs-uk", "sample"): nhs_uk_sample,
         ("modena", "all"): modena_all,
         ("ferrara", "all"): ferrara_all,
+        ("milano", "all"): milano_all,
+        ("madrid", "all"): madrid_all,
     }
 
     func = commands.get((args.location, args.mode))

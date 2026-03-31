@@ -21,6 +21,8 @@ SEP = "__"
 ZIPFILE_MAGIC_BYTES = b"\x50\x4b\x03\x04"
 XLS_2003_MAGIC_BYTES = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
+TIMEOUT_STREAM_TO_DISK = 60
+
 
 def stream_zip_to_disk(
     response: HTTPResponse, initial_bytes: bytes, download_destination: Path
@@ -36,7 +38,7 @@ def unzip(zippath: Path):
         zip.extractall(folder, [f for f in zip.namelist() if f.endswith(".csv")])
 
 
-@wrapt_timeout_decorator.timeout(60)
+@wrapt_timeout_decorator.timeout(TIMEOUT_STREAM_TO_DISK)
 def stream_data_to_disk(
     response: HTTPResponse,
     resource_id: str,
@@ -115,6 +117,7 @@ def _executor_task(
                     url, int(content_length), cfg.max_resource_size
                 )
 
+            print(resource_id)
             stream_data_to_disk(
                 response,  # ty: ignore
                 resource_id,
@@ -245,15 +248,18 @@ def fetch_metadata(
                     continue
 
                 # clean these two values
-                resource_id = resource_id.replace("/", "-").replace("__", "--")
-                resource_name = (
+                resource_id = Path(
+                    resource_id.replace("/", "-").replace("__", "--").replace(":", "-")
+                ).stem
+
+                resource_name = Path(
                     resource_name.strip()
                     .replace(" ", "-")
                     .replace(":", "-")
                     .replace("__", "--")
                     if resource_name
                     else ""
-                )
+                ).stem
 
                 package_resource_ids.append(resource_id)
 
@@ -278,6 +284,9 @@ def fetch_metadata(
 
                 full_metadata.append(package)
 
+    # limit the number of datasets to download with the specified count
+    resource_ids_urls = resource_ids_urls[:packages_count]
+
     return resource_ids_urls, full_metadata
 
 
@@ -296,6 +305,7 @@ def ckan_download_datasets(cfg: CKANDownloadConfig, client: CKAN):
     cfg.metadata_path = cfg.download_destination.joinpath("metadata", "metadata.json")
     cfg.metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # TODO: add option to specify if use existing-metadata or start from scratch
     if rsc_url_path.exists():
         with open(rsc_url_path, "r") as file:
             rsc_url = json.load(file)
@@ -310,4 +320,5 @@ def ckan_download_datasets(cfg: CKANDownloadConfig, client: CKAN):
         with open(rsc_url_path, "w") as file:
             json.dump(rsc_url, file, indent=4)
 
+    cfg.max_datasets
     download_tabular_resources(rsc_url, cfg, client)

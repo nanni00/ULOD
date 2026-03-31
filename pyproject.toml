@@ -23,3 +23,8 @@ dependencies = [
   "urllib3>=2.6.2",
   "wrapt-timeout-decorator>=1.5.1",
 ]
+
+[project.optional-dependencies]
+testing = [
+    "dotenv>=0.9.9",
+]

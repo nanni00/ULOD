@@ -513,10 +513,16 @@ dependencies = [
     { name = "wrapt-timeout-decorator" },
 ]
 
+[package.optional-dependencies]
+testing = [
+    { name = "dotenv" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.14.3" },
     { name = "dotenv", specifier = ">=0.9.9" },
+    { name = "dotenv", marker = "extra == 'testing'", specifier = ">=0.9.9" },
     { name = "fake-useragent", specifier = ">=2.2.0" },
     { name = "fastexcel", specifier = ">=0.18.0" },
     { name = "pandas", specifier = ">=2.3.3" },
@@ -527,6 +533,7 @@ requires-dist = [
     { name = "urllib3", specifier = ">=2.6.2" },
     { name = "wrapt-timeout-decorator", specifier = ">=1.5.1" },
 ]
+provides-extras = ["testing"]
 
 [[package]]
 name = "urllib3"

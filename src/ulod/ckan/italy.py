@@ -16,3 +16,8 @@ class ModenaCKAN(CKAN):
 class FerraraCKAN(CKAN):
     def __init__(self, headers: dict, connection_kw: Optional[dict] = None) -> None:
         super().__init__("https://dati.comune.fe.it/", "/api/3/action", headers)
+
+
+class MilanoCKAN(CKAN):
+    def __init__(self, headers: dict, connection_kw: Optional[dict] = None) -> None:
+        super().__init__("https://dati.comune.milano.it/", "/api/3/action", headers)

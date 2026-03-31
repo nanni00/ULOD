@@ -117,7 +117,6 @@ def _executor_task(
                     url, int(content_length), cfg.max_resource_size
                 )
 
-            print(resource_id)
             stream_data_to_disk(
                 response,  # ty: ignore
                 resource_id,
@@ -305,8 +304,7 @@ def ckan_download_datasets(cfg: CKANDownloadConfig, client: CKAN):
     cfg.metadata_path = cfg.download_destination.joinpath("metadata", "metadata.json")
     cfg.metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # TODO: add option to specify if use existing-metadata or start from scratch
-    if rsc_url_path.exists():
+    if rsc_url_path.exists() and cfg.use_existing_metadata:
         with open(rsc_url_path, "r") as file:
             rsc_url = json.load(file)
         with open(cfg.metadata_path, "r") as file:
@@ -314,11 +312,11 @@ def ckan_download_datasets(cfg: CKANDownloadConfig, client: CKAN):
     else:
         rsc_url, metadata = fetch_metadata(cfg, client)
 
-    if cfg.save_metadata:
-        with open(cfg.metadata_path, "w") as file:
-            json.dump(metadata, file, indent=4)
-        with open(rsc_url_path, "w") as file:
-            json.dump(rsc_url, file, indent=4)
+        if cfg.save_metadata:
+            with open(cfg.metadata_path, "w") as file:
+                json.dump(metadata, file, indent=4)
+            with open(rsc_url_path, "w") as file:
+                json.dump(rsc_url, file, indent=4)
 
     cfg.max_datasets
     download_tabular_resources(rsc_url, cfg, client)

@@ -14,6 +14,8 @@ class CKANDownloadConfig:
 
         max_datasets: Max number of datasets to download.
         batch_fetch_metadata: Batch size for initial metadata downloading.
+        use_existing_metadata: If True and metadata have already been downloaded,
+            don't fetch them again.
         filter_resource_metadata: Boolean predicate to apply on metadata.
         package_search_filters: Dictionary with filters on the package_search API
             method.
@@ -39,6 +41,9 @@ class CKANDownloadConfig:
     from_dataset_index: int = 0
     max_datasets: int = int(1e9)
     batch_fetch_metadata: int = 1000
+
+    # Metadata handling
+    use_existing_metadata: bool = True
 
     # Logic-specific filters
     filter_resource_metadata: Optional[Callable] = None
@@ -91,6 +96,9 @@ class SocrataDownloadConfig:
     download_destination: Path
     from_dataset_index: int = 0
     max_datasets: int = int(1e9)
+
+    # Metadata handling
+    use_existing_metadata: bool = True
 
     download_format: Literal["csv", "parquet", "json"] = "csv"
     save_metadata: bool = True

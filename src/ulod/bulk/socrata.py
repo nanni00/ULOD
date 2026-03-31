@@ -125,9 +125,14 @@ def socrata_download_datasets(cfg: SocrataDownloadConfig, client: SocrataClient)
     cfg.metadata_path = cfg.download_destination / "metadata" / "metadata.json"
     cfg.metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
-    metadata = fetch_metadata(cfg, client)
-    if cfg.save_metadata:
-        with open(cfg.metadata_path, "w") as file:
-            json.dump(metadata, file, indent=4)
+    if cfg.metadata_path.exists() and cfg.use_existing_metadata:
+        with open(cfg.metadata_path, "r") as file:
+            metadata = json.load(file)
+    else:
+        metadata = fetch_metadata(cfg, client)
+
+        if cfg.save_metadata:
+            with open(cfg.metadata_path, "w") as file:
+                json.dump(metadata, file, indent=4)
 
     download_tabular_resources(metadata, cfg, client)

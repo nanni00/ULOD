@@ -88,6 +88,86 @@ class CKANDownloadConfig:
 
 
 @dataclass
+class ODSDownloadConfig:
+    """
+    Configuration for bulk downloads with ODS endpoints.
+
+    Attributes:
+        download_destination: Where datasets will be stored locally.
+        from_dataset_index: Starting index with respect to remote indexing system.
+
+        max_datasets: Max number of datasets to download.
+        batch_fetch_metadata: Batch size for initial metadata downloading.
+        use_existing_metadata: If True and metadata have already been downloaded,
+            don't fetch them again.
+        filter_resource_metadata: Boolean predicate to apply on metadata.
+        package_search_filters: Dictionary with filters on the package_search API
+            method.
+        engine: Which dataframe library to use to read and store the datasets.
+        download_format: The format with which the datasets will be stored locally.
+        load_dataset_kwargs: Dictionary of parameters to pass to pandas/polar.read_csv.
+        save_dataset_kwargs: Dictionary of parameters to pass to pandas.to_* or polars.write_csv
+            dataframe storing a downloaded dataset. These parameters should be coherent with
+            the specified download format.
+        save_with_resource_name: Whether the resource name has to be prepended to the resource ID.
+            If True, resulting names will be <resource name>::<resource ID>.<download format>
+        save_metadata: Whether the fetched metadata have to be saved locally.
+        accept_zip_files: Whether ZIP folders have to be extracted and stored locally.
+        http_headers: Dictionary of HTTP parameters passed to a urllib3.PoolManager instance as
+            parameter "header".
+        max_resource_size: Max resource size as bytes.
+        max_process_workers: Max number of concurrent processes.
+        max_workers: Max number of threads per process.
+    """
+
+    download_destination: Path
+
+    from_dataset_index: int = 0
+    max_datasets: int = int(1e9)
+    batch_fetch_metadata: int = 1000
+
+    # Metadata handling
+    use_existing_metadata: bool = True
+
+    # Logic-specific filters
+
+    # Engine & Formats
+    download_format: Literal["csv", "parquet", "json"] = "csv"
+
+    # Boolean flags
+    save_with_resource_name: bool = True
+    save_metadata: bool = True
+    verbose: bool = False
+
+    # Networking & Concurrency
+    http_headers: dict[str, Any] = field(default_factory=dict)
+    connection_pool_kw: dict = field(default_factory=dict)
+
+    max_workers: int = 1
+
+    # Verbosity
+    verbose: bool = True
+
+    def __post_init__(self):
+        """
+        Validate input parameters and handle paths.
+        """
+        # Ensure path is a Path object
+        if isinstance(self.download_destination, str):
+            self.download_destination = Path(self.download_destination)
+
+        if not self.download_destination.exists():
+            raise FileNotFoundError(
+                f"Download destination folder doesn't exist: {self.download_destination.resolve()}"
+            )
+
+        # ... existing validation ...
+        self.datasets_folder_path = self.download_destination / "datasets"
+        self.log_folder_path = self.download_destination / "logs"
+        self.metadata_path = self.download_destination / "metadata.json"
+
+
+@dataclass
 class SocrataDownloadConfig:
     """
     Configuration for bulk downloads with Socrata endpoints.

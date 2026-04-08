@@ -152,6 +152,7 @@ def download_tabular_resources(
     ]
 
     http = PoolManager(headers=cfg.http_headers)
+    success_count = 0
 
     try:
         with ThreadPoolExecutor(max_workers) as executor:
@@ -159,8 +160,6 @@ def download_tabular_resources(
                 executor.submit(_executor_task, worker_id, http, task, cfg, client)
                 for worker_id, task in enumerate(work)
             }
-
-            success_count = 0
 
             for future in tqdm(
                 as_completed(futures),

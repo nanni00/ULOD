@@ -6,10 +6,13 @@ import pandas as pd
 import polars as pl
 from sodapy import Socrata
 
-from ulod.socrata.utils import cast_socrata_types
+from ulod.sources.base import Source
+from ulod.sources.utils import cast_socrata_types
 
 
-class SocrataClient:
+class SocrataClient(Source):
+    source_type = "socrata"
+
     def __init__(
         self,
         domain: str,

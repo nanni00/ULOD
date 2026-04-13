@@ -11,7 +11,7 @@ from urllib3 import HTTPResponse, PoolManager
 
 from ulod.bulk.configurations import CKANDownloadConfig
 from ulod.bulk.utils import init_logger
-from ulod.ckan import CKAN
+from ulod.sources import CKAN
 from ulod.utils.exceptions import (
     HTTPResourceError,
     TooLargeResourceError,

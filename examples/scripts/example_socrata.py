@@ -11,7 +11,7 @@ from ulod.bulk.socrata import (
     SocrataDownloadConfig,
     socrata_download_datasets,
 )
-from ulod.socrata import NYCSocrata
+from ulod.countries.usa import NYC
 
 p = Path(__file__) / ".." / ".." / ".." / ".env"
 load_dotenv(p.resolve(), verbose=True)
@@ -24,7 +24,7 @@ def nyc_all():
     download_dst = Path(os.environ["DATADIR"], "ulod", "socrata", "nyc")
     download_dst.mkdir(parents=True, exist_ok=True)
 
-    nyc = NYCSocrata(app_token)
+    nyc = NYC(app_token)
 
     cfg = SocrataDownloadConfig(
         download_dst,
@@ -46,7 +46,7 @@ def nyc_sample():
     assert "SOCRATA_NYC_APP_TOKEN" in os.environ
     app_token = os.environ["SOCRATA_NYC_APP_TOKEN"]
 
-    nyc = NYCSocrata(app_token)
+    nyc = NYC(app_token)
 
     download_dst = Path(os.environ["DATADIR"], "ulod", "socrata", "nyc")
     download_dst.mkdir(parents=True, exist_ok=True)

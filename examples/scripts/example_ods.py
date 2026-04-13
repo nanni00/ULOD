@@ -15,12 +15,12 @@ connection_pool_kw = {"redirect": True, "timeout": 5}
 
 def bologna_all():
     from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
-    from ulod.ods.italy import BolognaODS
+    from ulod.countries.italy import Bologna
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ods", "bologna")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    client = BolognaODS(headers=headers, connection_kw=connection_pool_kw)
+    client = Bologna(headers=headers, connection_kw=connection_pool_kw)
 
     cfg = ODSDownloadConfig(
         download_destination,
@@ -41,16 +41,16 @@ def bologna_all():
 
 def paris_all():
     from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
-    from ulod.ods.france import ParisODS
+    from ulod.countries.france import Paris
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ods", "paris")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    client = ParisODS(headers=headers, connection_kw=connection_pool_kw)
+    client = Paris(headers=headers, connection_kw=connection_pool_kw)
 
     cfg = ODSDownloadConfig(
         download_destination,
-        max_datasets=10,
+        max_datasets=1000,
         from_dataset_index=0,
         batch_fetch_metadata=100,
         download_format="csv",
@@ -59,7 +59,7 @@ def paris_all():
         connection_pool_kw=connection_pool_kw,
         use_existing_metadata=False,
         # max_resource_size=2**27,
-        max_workers=1,
+        max_workers=10,
         verbose=True,
     )
 

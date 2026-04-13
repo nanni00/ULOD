@@ -85,12 +85,12 @@ save_csv_kwargs = {"index": False}
 
 def canada_sample():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.ckan import CanadaCKAN
+    from ulod.countries.canada import Canada
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "canada_sample")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    client = CanadaCKAN(headers=headers, connection_kw=connection_pool_kw)
+    client = Canada(headers=headers, connection_kw=connection_pool_kw)
 
     cfg = CKANDownloadConfig(
         download_destination,
@@ -111,12 +111,12 @@ def canada_sample():
 
 def canada_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.ckan import CanadaCKAN
+    from ulod.countries.canada import Canada
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "canada")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    client = CanadaCKAN(headers=headers, connection_kw=connection_pool_kw)
+    client = Canada(headers=headers, connection_kw=connection_pool_kw)
     cfg = CKANDownloadConfig(
         download_destination,
         max_datasets=20_000,
@@ -136,12 +136,12 @@ def canada_all():
 
 def uk_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.ckan.uk import UKCKAN
+    from ulod.countries.uk import UK
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    client = UKCKAN(headers=headers, connection_kw=connection_pool_kw)
+    client = UK(headers=headers, connection_kw=connection_pool_kw)
 
     download_cfg = CKANDownloadConfig(
         download_destination,
@@ -164,12 +164,12 @@ def uk_all():
 
 def uk_sample():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.ckan.uk import UKCKAN
+    from ulod.countries.uk import UK
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk-sample")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    client = UKCKAN(headers=headers, connection_kw=connection_pool_kw)
+    client = UK(headers=headers, connection_kw=connection_pool_kw)
 
     download_cfg = CKANDownloadConfig(
         download_destination,
@@ -192,13 +192,13 @@ def uk_sample():
 
 def nhs_uk_sample():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.ckan.uk import NHSUKCKAN
+    from ulod.countries.uk import NHSUK
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "nhs_uk")
     download_destination.mkdir(parents=True, exist_ok=True)
 
     connection_pool_kw.update({"timeout": 20})
-    client = NHSUKCKAN(headers=headers, connection_kw=connection_pool_kw)
+    client = NHSUK(headers=headers, connection_kw=connection_pool_kw)
 
     download_cfg = CKANDownloadConfig(
         download_destination,
@@ -221,12 +221,12 @@ def nhs_uk_sample():
 
 def modena_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.ckan.italy import ModenaCKAN
+    from ulod.countries.italy import Modena
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "modena")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    client = ModenaCKAN(headers=headers, connection_kw=connection_pool_kw)
+    client = Modena(headers=headers, connection_kw=connection_pool_kw)
 
     cfg = CKANDownloadConfig(
         download_destination,
@@ -249,12 +249,12 @@ def modena_all():
 
 def ferrara_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.ckan.italy import FerraraCKAN
+    from ulod.countries.italy import Ferrara
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "ferrara_v2")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    client = FerraraCKAN(headers=headers, connection_kw=connection_pool_kw)
+    client = Ferrara(headers=headers, connection_kw=connection_pool_kw)
 
     cfg = CKANDownloadConfig(
         download_destination,
@@ -277,12 +277,12 @@ def ferrara_all():
 
 def milano_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.ckan.italy import MilanoCKAN
+    from ulod.countries.italy import Milano
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "milano")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    client = MilanoCKAN(headers=headers, connection_kw=connection_pool_kw)
+    client = Milano(headers=headers, connection_kw=connection_pool_kw)
 
     cfg = CKANDownloadConfig(
         download_destination,
@@ -305,12 +305,12 @@ def milano_all():
 
 def madrid_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.ckan.spain import MadridCKAN
+    from ulod.countries.spain import Madrid
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "madrid")
     download_destination.mkdir(parents=True, exist_ok=True)
 
-    client = MadridCKAN(headers=headers, connection_kw=connection_pool_kw)
+    client = Madrid(headers=headers, connection_kw=connection_pool_kw)
 
     cfg = CKANDownloadConfig(
         download_destination,
@@ -324,7 +324,7 @@ def madrid_all():
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
         max_resource_size=2**28,
-        max_workers=3,
+        max_workers=1,
         verbose=True,
     )
 

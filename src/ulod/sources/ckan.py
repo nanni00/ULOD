@@ -2,6 +2,8 @@ from typing import Optional
 
 import urllib3
 
+from ulod.sources.base import Source
+
 
 def endpoint(name):
     def decorator(func):
@@ -17,7 +19,9 @@ def endpoint(name):
 # A possible option for implementing subclasses is
 # python functools.partial, but in this way we lose the possibility
 # to override methods for specific cases
-class CKAN:
+class CKAN(Source):
+    source_type = "ckan"
+
     def __init__(
         self,
         base_url: str,

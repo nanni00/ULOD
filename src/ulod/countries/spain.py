@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ulod.sources.ckan import CKAN
 
 from typing import Any, Optional
 
@@ -31,3 +32,10 @@ class Madrid(SessionCKAN):
             "max_consecutive_403": 3,
             "session_warmup_url": f"{self.base_url}/",
         }
+
+
+class Valencia(CKAN):
+    source_type = "ckan"
+
+    def __init__(self, headers: dict, connection_kw: Optional[dict] = None) -> None:
+        super().__init__("https://opendata.vlci.valencia.es", "/api/3/action/", headers, connection_kw)

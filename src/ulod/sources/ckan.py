@@ -99,7 +99,7 @@ class CKAN(Source):
         return url
 
     def _base_method(self, action: str, **kwargs):
-        action = self._complete_url_with_kwargs(f"/{action}?", **kwargs)
+        action = self._complete_url_with_kwargs(f"{action}?", **kwargs)
         url = f"{self.final_url}{action}"
         return self._make_request(url)
 

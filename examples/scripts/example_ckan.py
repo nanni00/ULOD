@@ -277,7 +277,7 @@ def milano_all():
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
         max_resource_size=2**28,
-        max_workers=1,
+        max_workers=2,
         verbose=True,
     )
 
@@ -305,12 +305,39 @@ def madrid_all():
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
         max_resource_size=2**28,
-        max_workers=1,
+        max_workers=2,
         verbose=True,
     )
 
     ckan_download_datasets(cfg, client)
 
+
+def valencia_all():
+    from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
+    from ulod.countries.spain import Valencia
+
+    download_destination = Path(os.environ["DATADIR"]) / "ulod" / "ckan" / "valencia"
+    download_destination.mkdir(parents=True, exist_ok=True)
+
+    client = Valencia(headers=headers, connection_kw=connection_pool_kw)
+
+    cfg = CKANDownloadConfig(
+        download_destination,
+        max_datasets=3000,
+        from_dataset_index=0,
+        batch_fetch_metadata=200,
+        filter_resource_metadata=csv_only_filter_resource_metadata,
+        download_format="csv",
+        http_headers=headers,
+        save_with_resource_name=True,
+        accept_zip_files=False,
+        connection_pool_kw=connection_pool_kw,
+        max_resource_size=2**28,
+        max_workers=2,
+        verbose=True,
+    )
+
+    ckan_download_datasets(cfg, client)
 
 def main():
     parser = argparse.ArgumentParser(description="CKAN bulk downloads examples CLI")
@@ -318,7 +345,7 @@ def main():
     # Define positional arguments
     parser.add_argument(
         "location",
-        choices=["canada", "uk", "nhs-uk", "modena", "ferrara", "milano", "madrid"],
+        choices=["canada", "uk", "nhs-uk", "modena", "ferrara", "milano", "madrid", "valencia"],
         help="Target location",
     )
     parser.add_argument("mode", choices=["all", "sample"], help="Download mode")
@@ -336,6 +363,7 @@ def main():
         ("ferrara", "all"): ferrara_all,
         ("milano", "all"): milano_all,
         ("madrid", "all"): madrid_all,
+        ("valencia", "all"): valencia_all,
     }
 
     func = commands.get((args.location, args.mode))

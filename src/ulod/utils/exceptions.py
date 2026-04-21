@@ -3,6 +3,14 @@ class HTTPResourceError(Exception):
         self._url = url
         self._status = status
 
+    @property
+    def url(self) -> str:
+        return self._url
+
+    @property
+    def status(self) -> int:
+        return self._status
+
     def __str__(self):
         return f"Error status {self._status} with requested URL: {self._url}"
 

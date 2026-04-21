@@ -64,25 +64,6 @@ def csv_json_only_filter_resource_metadata(metadata: dict[str, Any]) -> bool:
     return True
 
 
-# IMPORTAN: CKAN configuration is pandas-oriented now :IMPORTANT
-# Because pandas supports CSV files sep auto-detection, while
-# polars not at this time.
-
-# these options should be configured wrt the selected engine
-read_dataset_kwargs = {
-    "sep": None,
-    "encoding": "latin-1",
-    "encoding_errors": "ignore",
-    "on_bad_lines": "skip",
-    "engine": "python",
-}
-
-save_csv_kwargs = {"index": False}
-# save_parquet_kwargs = {"index": False, "compression": "gzip"}
-
-# END: ---------------------------------------------------- :END
-
-
 def canada_sample():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
     from ulod.countries.canada import Canada
@@ -307,7 +288,7 @@ def madrid_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
     from ulod.countries.spain import Madrid
 
-    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "madrid")
+    download_destination = Path(os.environ["DATADIR"]) / "ulod" / "ckan" / "madrid"
     download_destination.mkdir(parents=True, exist_ok=True)
 
     client = Madrid(headers=headers, connection_kw=connection_pool_kw)

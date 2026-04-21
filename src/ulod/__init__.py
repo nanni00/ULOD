@@ -7,6 +7,12 @@ and in general Python libraries for CKAN are quite sparse or are not focused on 
 which instead are relevant for my work.
 """
 
-from ulod import bulk, countries, sources, un, wbo
+from importlib import import_module
 
 __all__ = ["bulk", "countries", "sources", "un", "wbo"]
+
+
+def __getattr__(name: str):
+    if name in __all__:
+        return import_module(f"ulod.{name}")
+    raise AttributeError(f"module 'ulod' has no attribute {name!r}")

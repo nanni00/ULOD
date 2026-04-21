@@ -62,6 +62,12 @@ class CKANDownloadConfig:
     http_headers: dict[str, Any] = field(default_factory=dict)
     connection_pool_kw: dict = field(default_factory=dict)
     max_resource_size: int = 2**20
+    request_delay_s: Optional[float] = None
+    request_jitter_s: Optional[float] = None
+    retry_backoff_base_s: Optional[float] = None
+    cooldown_on_403_s: Optional[float] = None
+    max_consecutive_403: Optional[int] = None
+    session_warmup_url: Optional[str] = None
 
     max_workers: int = 1
 

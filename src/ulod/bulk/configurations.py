@@ -1,3 +1,4 @@
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Literal, Optional
@@ -224,3 +225,66 @@ class SocrataDownloadConfig:
         self.log_folder_path: Path = self.download_destination / "logs"
         self.datasets_folder_path: Path = self.download_destination / "datasets"
         self.metadata_path: Path = self.download_destination / "metadata.json"
+
+
+@dataclass
+class USDownloadConfig:
+    """
+    Configuration for raw bulk downloads from catalog.data.gov.
+    """
+
+    download_destination: Path
+
+    mode: Literal["all", "updated-only"] = "all"
+    formats: tuple[str, ...] | str | None = None
+
+    # Data.gov search filters
+    q: str = ""
+    sort: Literal["relevance", "popularity", "distance", "last_harvested_date"] = (
+        "last_harvested_date"
+    )
+    per_page: int = 100
+    after: str | None = None
+    org_slug: str | None = None
+    org_type: str | None = None
+    keyword: str | Sequence[str] | None = None
+    spatial_filter: Literal["geospatial", "non-geospatial"] | None = None
+    spatial_geometry: str | Mapping[str, Any] | None = None
+    spatial_within: bool | None = None
+
+    max_datasets: int = int(1e9)
+    max_workers: int = 1
+    max_resource_size: int | None = None
+    chunk_size: int = 65536
+    save_metadata: bool = True
+    verbose: bool = True
+
+    def __post_init__(self):
+        if isinstance(self.download_destination, str):
+            self.download_destination = Path(self.download_destination)
+
+        if not self.download_destination.exists():
+            raise FileNotFoundError(
+                f"Download destination folder doesn't exist: {self.download_destination.resolve()}"
+            )
+
+        if self.mode not in {"all", "updated-only"}:
+            raise ValueError("mode must be either 'all' or 'updated-only'")
+
+        if isinstance(self.formats, str):
+            self.formats = (self.formats,)
+        elif self.formats is not None:
+            self.formats = tuple(self.formats)
+
+        if self.formats is not None:
+            self.formats = tuple(
+                fmt.lower().lstrip(".").strip()
+                for fmt in self.formats
+                if fmt.strip()
+            )
+
+        self.run_root_path: Path = self.download_destination
+        self.log_folder_path: Path = self.download_destination / "logs"
+        self.datasets_folder_path: Path = self.download_destination / "datasets"
+        self.metadata_path: Path = self.download_destination / "metadata.json"
+        self.manifest_path: Path = self.download_destination / "manifest.json"

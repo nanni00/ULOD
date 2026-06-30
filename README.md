@@ -1,8 +1,277 @@
 # UseLess Open Data
 
-A very simple, unefficient, unsafe library for downloading Open Data from different endpoints.
+UseLess Open Data (ULOD) is a small Python library for collecting datasets from open-data portals. It focuses on practical bulk downloads from CKAN, Socrata and OpenDataSoft (ODS) sources, with a few additional helpers for portals such as UN Data, World Bank Data360 (WBO), and catalog.data.gov.
+
+The project is intentionally lightweight: it wraps common portal APIs, fetches metadata, filters resources, and stores downloaded datasets plus logs and metadata snapshots on disk.
+
+## Supported sources
+
+### CKAN
+
+CKAN support is the most general-purpose path for government and city portals.
+
+Available pieces:
+
+- `ulod.sources.CKAN` and `ulod.sources.SessionCKAN` for direct API calls.
+- `ulod.bulk.ckan.ckan_download_datasets` for metadata-driven bulk downloads.
+- Country and city presets under `ulod.countries`, including Canada, UK, NHS UK, Italy, Modena, Ferrara, Milano, Madrid and Valencia.
+
+Supported CKAN API methods include:
+
+- `package_search`
+- `package_show`
+- `package_list`
+- `resource_show`
+- `resource_search`
+
+Bulk downloads can:
+
+- paginate portal metadata;
+- filter resources before downloading;
+- save metadata and resource URL indexes;
+- resume metadata collection from checkpoints;
+- stream resources to disk;
+- limit maximum resource size;
+- apply request delays, jitter, retry backoff and 403 cooldowns;
+- use multiple download workers.
+
+### Socrata
+
+Socrata support uses `sodapy` and is suited to portals such as NYC Open Data.
+
+Available pieces:
+
+- `ulod.sources.SocrataClient` for dataset metadata and record queries.
+- `ulod.bulk.socrata.socrata_download_datasets` for bulk dataset export.
+- Socrata presets under `ulod.countries.usa`, including NYC.
+
+The client can:
+
+- list dataset metadata;
+- fetch records in batches;
+- return pandas or polars dataframes;
+- optionally cast datatypes from Socrata metadata;
+- store datasets as CSV, JSON or Parquet.
+
+Socrata portals usually require an application token for reliable usage.
+
+### ODS
+
+ODS support targets OpenDataSoft Explore API v2.1 portals.
+
+Available pieces:
+
+- `ulod.sources.ODS` for direct catalog and export calls.
+- `ulod.bulk.ods.ods_download_datasets` for metadata-driven bulk downloads.
+- ODS presets under `ulod.countries`, including Bologna and Paris.
+
+Supported ODS API methods include:
+
+- `catalog_datasets`
+- `catalog_exports`
+- `catalog_exports_csv`
+- `export_dataset_in_format`
+
+Bulk downloads can fetch dataset IDs from the catalog, save metadata snapshots, and export datasets to disk.
+
+### Other sources
+
+ULOD also contains narrower helpers for:
+
+- UN Data topic and data mart downloads: `ulod.un.UNDataTopics`.
+- World Bank Data360 indicator downloads: `ulod.wbo.WorldBankDataDownloader`.
+- catalog.data.gov search and iteration: `ulod.countries.us.US`.
+
+These are available, but the main bulk-download workflow is currently centered on CKAN, Socrata and ODS.
+
+## Installation
+
+The project requires Python 3.13 or newer.
+
+From a local checkout:
+
+```bash
+pip install -e .
+```
+
+With `uv`:
+
+```bash
+uv sync
+```
+
+## Quick usage
+
+### CKAN bulk download
+
+```python
+from pathlib import Path
+
+from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
+from ulod.countries.canada import Canada
 
 
-### Warning!
+def csv_only(resource: dict) -> bool:
+    return resource.get("format", "").lower() == "csv"
 
-Parallelization is not perfectly handled: sometimes the code stucks even if all available datasets have been already downloaded, or if you want to stop the execution a simple Ctrl+C might sadly fail, and a more drastic solution is required (e.g. close the tab, or kill processes).
+
+destination = Path("data/ulod/ckan/canada")
+destination.mkdir(parents=True, exist_ok=True)
+
+client = Canada(
+    headers={"User-Agent": "ulod"},
+    connection_kw={"timeout": 10, "redirect": True},
+)
+
+cfg = CKANDownloadConfig(
+    download_destination=destination,
+    max_datasets=100,
+    batch_fetch_metadata=100,
+    filter_resource_metadata=csv_only,
+    download_format="csv",
+    max_resource_size=2**26,
+    max_workers=2,
+    verbose=True,
+)
+
+ckan_download_datasets(cfg, client)
+```
+
+### Socrata dataset download
+
+```python
+from pathlib import Path
+
+from ulod.sources import SocrataClient
+
+
+destination = Path("data/ulod/socrata")
+destination.mkdir(parents=True, exist_ok=True)
+
+client = SocrataClient(
+    domain="data.cityofnewyork.us",
+    app_token="YOUR_APP_TOKEN",
+)
+
+df = client.get_dataset_as_df(
+    id="erm2-nwe9",
+    engine="polars",
+    limit=1000,
+    batch_size=500,
+)
+
+client.get_and_store_dataset(
+    id="erm2-nwe9",
+    store_dst=destination,
+    store_format="parquet",
+    engine="polars",
+    limit=1000,
+)
+```
+
+### ODS bulk download
+
+```python
+from pathlib import Path
+
+from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
+from ulod.countries.france import Paris
+
+
+destination = Path("data/ulod/ods/paris")
+destination.mkdir(parents=True, exist_ok=True)
+
+client = Paris(
+    headers={"User-Agent": "ulod"},
+    connection_kw={"timeout": 10, "redirect": True},
+)
+
+cfg = ODSDownloadConfig(
+    download_destination=destination,
+    max_datasets=100,
+    batch_fetch_metadata=100,
+    download_format="csv",
+    max_workers=4,
+    verbose=True,
+)
+
+ods_download_datasets(cfg, client)
+```
+
+## Example scripts
+
+Runnable examples are available in `examples/scripts`:
+
+- `example_ckan.py`: CKAN downloads for Canada, UK, NHS UK, Modena, Ferrara, Milano, Madrid and Valencia.
+- `example_socrata.py`: Socrata downloads for NYC Open Data.
+- `example_ods.py`: ODS downloads for Bologna and Paris.
+- `example_us.py`: catalog.data.gov iteration.
+- `example_un_topics.py`: UN Data topic tree download example.
+
+Most scripts expect `DATADIR` to point to a writable data directory. Socrata examples also expect the relevant app token in the environment, for example `SOCRATA_NYC_APP_TOKEN`.
+
+Example:
+
+```bash
+export DATADIR="$HOME/data"
+export SOCRATA_NYC_APP_TOKEN="..."
+
+python examples/scripts/example_ckan.py canada sample
+python examples/scripts/example_socrata.py nyc sample
+python examples/scripts/example_ods.py paris all
+```
+
+## Output layout
+
+Bulk downloaders create a structured directory under `download_destination`:
+
+```text
+download_destination/
+  datasets/
+    <format>/
+      ...
+  metadata/
+    metadata.json
+    ...
+  log/
+    download/
+      <timestamp>/
+        ...
+```
+
+Exact metadata filenames vary by source. CKAN also stores resource URL indexes and metadata checkpoints; ODS stores dataset IDs; Socrata stores dataset metadata.
+
+## Configuration highlights
+
+Common bulk options include:
+
+- `download_destination`: existing destination directory.
+- `max_datasets`: maximum number of remote datasets to inspect or download.
+- `from_dataset_index`: starting offset for metadata pagination.
+- `batch_fetch_metadata`: metadata page size.
+- `use_existing_metadata`: reuse previously stored metadata when available.
+- `save_metadata`: persist fetched metadata.
+- `download_format`: output format, usually `csv`, `json` or `parquet`.
+- `max_workers`: number of concurrent workers.
+- `verbose`: show progress bars.
+
+CKAN-specific options include:
+
+- `filter_resource_metadata`: predicate used to keep or skip resources.
+- `package_search_filters`: extra filters passed to `package_search`.
+- `save_with_resource_name`: include resource names in output filenames.
+- `max_resource_size`: skip resources above a byte-size limit.
+- `request_delay_s`, `request_jitter_s`, `retry_backoff_base_s`, `cooldown_on_403_s`, `max_consecutive_403`: controls for protected or rate-limited portals.
+
+Socrata-specific options include:
+
+- `engine`: `pandas` or `polars`.
+- `cast_datatypes`: cast columns using Socrata metadata when available.
+- `max_rows_per_dataset`: row cap per dataset.
+- `batch_rows_per_dataset`: API batch size.
+
+## Caveats
+
+This is a pragmatic downloader, not a polished data platform. Some portals are slow, inconsistent, rate-limited or protected by edge services. Bulk downloads may need conservative worker counts, request delays and retries.
+
+Parallel execution is still rough in places. In some failure modes, especially with large jobs or interrupted remote connections, stopping a run may require terminating the Python process.

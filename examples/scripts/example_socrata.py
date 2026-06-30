@@ -34,7 +34,7 @@ def nyc_all():
         engine="polars",
         cast_datatypes=False,
         save_metadata=True,
-        max_rows_per_dataset=1_000_000,
+        max_rows_per_dataset=10_000_000,
         max_workers=20,
         verbose=True,
     )

@@ -27,3 +27,4 @@ class NYC(SocrataClient):
         timeout: int = 20,
     ) -> None:
         super().__init__("data.cityofnewyork.us", app_token, user, password, timeout)
+        

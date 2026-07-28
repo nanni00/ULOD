@@ -15,7 +15,7 @@ connection_pool_kw = {"redirect": True, "timeout": 5}
 
 def bologna_all():
     from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
-    from ulod.countries.italy import Bologna
+    from ulod.ods import Bologna
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ods", "bologna")
     download_destination.mkdir(parents=True, exist_ok=True)
@@ -41,7 +41,7 @@ def bologna_all():
 
 def paris_all():
     from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
-    from ulod.countries.france import Paris
+    from ulod.ods import Paris
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ods", "paris")
     download_destination.mkdir(parents=True, exist_ok=True)

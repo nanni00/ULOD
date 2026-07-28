@@ -3,7 +3,9 @@ from typing import Optional
 
 import urllib3
 
-from ulod.sources.base import Source
+from ulod.base import Source
+
+__all__ = ["ODS"]
 
 
 def endpoint(name):
@@ -17,9 +19,6 @@ def endpoint(name):
     return decorator
 
 
-# A possible option for implementing subclasses is
-# python functools.partial, but in this way we lose the possibility
-# to override methods for specific cases
 class ODS(Source):
     source_type = "ods"
 
@@ -45,9 +44,7 @@ class ODS(Source):
         try:
             decoded = response.json()
         except json.decoder.JSONDecodeError:
-            decoded = response.data.decode(
-                "utf-8-sig"
-            )  # json.loads(response.data.decode("utf-8-sig"))
+            decoded = response.data.decode("utf-8-sig")
 
         return decoded
 

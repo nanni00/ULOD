@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from ulod.bulk.configurations import ODSDownloadConfig
 from ulod.bulk.utils import init_logger
-from ulod.sources import ODS
+from ulod.ods.client import ODS
 from ulod.utils.exceptions import TooLargeResourceError
 
 TIMEOUT_STREAM_TO_DISK = 60

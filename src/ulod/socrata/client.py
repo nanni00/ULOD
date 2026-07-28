@@ -6,8 +6,10 @@ import pandas as pd
 import polars as pl
 from sodapy import Socrata
 
-from ulod.sources.base import Source
-from ulod.sources.utils import cast_socrata_types
+from ulod.base import Source
+from ulod.socrata.utils import cast_socrata_types
+
+__all__ = ["SocrataClient"]
 
 
 class SocrataClient(Source):
@@ -154,8 +156,6 @@ class SocrataClient(Source):
                                 {column: dtype},
                             )
             case "polars":
-                # print(dtypes_cast)
-                # print(data[:5])
                 df = pl.DataFrame(
                     data, dtypes_mapping, orient="row", infer_schema_length=None
                 )
@@ -200,12 +200,13 @@ class SocrataClient(Source):
             id, engine, cast_datatypes, resource_metadata, batch_size, **kwargs
         )
 
+        # TODO add save file options inside the client configuration
         if isinstance(df, pl.DataFrame):
             match store_format:
                 case "csv":
                     df.write_csv(file_name)
                 case "parquet":
-                    df.write_parquet(file_name)
+                    df.write_parquet(file_name, compression_level=22)
                 case "json":
                     df.write_json(file_name)
 

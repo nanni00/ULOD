@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from ulod.bulk.configurations import SocrataDownloadConfig
 from ulod.bulk.utils import init_logger
-from ulod.sources import SocrataClient
+from ulod.socrata.client import SocrataClient
 
 warnings.filterwarnings("ignore")
 

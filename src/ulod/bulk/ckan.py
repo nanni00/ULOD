@@ -16,8 +16,7 @@ from tqdm import tqdm
 
 from ulod.bulk.configurations import CKANDownloadConfig
 from ulod.bulk.utils import init_logger
-from ulod.sources import CKAN
-from ulod.sources.ckan import StreamResponse
+from ulod.ckan.client import CKAN, StreamResponse
 from ulod.utils.exceptions import HTTPResourceError, TooLargeResourceError
 
 SEP = "__"

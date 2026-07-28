@@ -9,7 +9,7 @@ which instead are relevant for my work.
 
 from importlib import import_module
 
-__all__ = ["bulk", "countries", "sources", "un", "wbo"]
+__all__ = ["base", "bulk", "ckan", "ods", "socrata", "un", "wbo"]
 
 
 def __getattr__(name: str):

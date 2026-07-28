@@ -24,7 +24,7 @@ from ulod.bulk.ckan import (
     fetch_metadata,
 )
 from ulod.bulk.configurations import CKANDownloadConfig
-from ulod.countries.spain import Madrid
+from ulod.ckan import Madrid
 from ulod.utils.exceptions import HTTPResourceError
 
 

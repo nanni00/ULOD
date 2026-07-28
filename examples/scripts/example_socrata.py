@@ -5,15 +5,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-sys.path.append(str(Path(__file__, "..", "..", "..", "src").resolve()))
-
 from ulod.bulk.socrata import (
     SocrataDownloadConfig,
     socrata_download_datasets,
 )
-from ulod.countries.usa import NYC
+from ulod.socrata import NYC
 
-p = Path(__file__) / ".." / ".." / ".." / ".env"
+p = Path.cwd().parent.parent / ".env"
 load_dotenv(p.resolve(), verbose=True)
 
 

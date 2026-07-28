@@ -7,8 +7,10 @@ from typing import Any, Callable, Iterator, Mapping, Optional
 import requests
 import urllib3
 
-from ulod.sources.base import Source
+from ulod.base import Source
 from ulod.utils.exceptions import HTTPResourceError
+
+__all__ = ["StreamResponse", "CKAN", "SessionCKAN"]
 
 
 @dataclass

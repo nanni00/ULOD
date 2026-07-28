@@ -1,11 +1,12 @@
 Metadata-Version: 2.4
 Name: ulod
-Version: 0.1.0
+Version: 0.2.2
 Summary: UseLess Open Data. A simple library with one goal: large downloads from Open Data domains.
 Author-email: Giovanni Malaguti <giovanni.malaguti00@gmail.com>
 Requires-Python: >=3.13
 Description-Content-Type: text/markdown
 Requires-Dist: beautifulsoup4>=4.14.3
+Requires-Dist: dotenv>=0.9.9
 Requires-Dist: fake-useragent>=2.2.0
 Requires-Dist: fastexcel>=0.18.0
 Requires-Dist: pandas>=2.3.3
@@ -14,6 +15,7 @@ Requires-Dist: requests>=2.32.5
 Requires-Dist: sodapy>=2.2.0
 Requires-Dist: tqdm>=4.67.1
 Requires-Dist: urllib3>=2.6.2
+Requires-Dist: wrapt-timeout-decorator>=1.5.1
 
 # UseLess Open Data
 

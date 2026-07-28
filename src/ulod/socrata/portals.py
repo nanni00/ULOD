@@ -1,6 +1,8 @@
 from typing import Optional
 
-from ulod.sources import SocrataClient
+from ulod.socrata.client import SocrataClient
+
+__all__ = ["Chicago", "NYC"]
 
 
 class Chicago(SocrataClient):

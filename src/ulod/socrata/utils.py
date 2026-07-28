@@ -2,6 +2,8 @@ from typing import Literal, Optional
 
 import polars as pl
 
+__all__ = ["cast_socrata_types"]
+
 
 def _to(pd_dt, pl_dt, engine):
     return pd_dt if "engine" == "pandas" else pl_dt
@@ -15,15 +17,11 @@ def _cast_to(
             return _to("string", pl.String, engine)
         case "calendar date":
             if not format:
-                # raise ValueError(
-                #     "Invalid casting to datetime without format information"
-                # )
                 return _to("datetime", pl.Datetime, engine)
             elif format and "view" not in format:
                 return _to("datatime", pl.Date, engine)
 
             match format["view"]:
-                # FIX: Date/Datetime
                 case "date" | "date_ymd":
                     return _to("datetime %Y-%m-%d", pl.Datetime, engine)
                 case "date_my":
@@ -38,7 +36,6 @@ def _cast_to(
                     )
         case "number":
             if not format:
-                # raise ValueError("Invalid casting to number without format information")
                 return _to("float", pl.Float32, engine)
             elif format and "noCommas" not in format:
                 return _to("integer", pl.Int32, engine)

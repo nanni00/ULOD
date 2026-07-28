@@ -66,7 +66,7 @@ def csv_json_only_filter_resource_metadata(metadata: dict[str, Any]) -> bool:
 
 def canada_sample():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.countries.canada import Canada
+    from ulod.ckan import Canada
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "canada_sample")
     download_destination.mkdir(parents=True, exist_ok=True)
@@ -92,7 +92,7 @@ def canada_sample():
 
 def canada_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.countries.canada import Canada
+    from ulod.ckan import Canada
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "canada")
     download_destination.mkdir(parents=True, exist_ok=True)
@@ -117,7 +117,7 @@ def canada_all():
 
 def uk_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.countries.uk import UK
+    from ulod.ckan import UK
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk")
     download_destination.mkdir(parents=True, exist_ok=True)
@@ -145,7 +145,7 @@ def uk_all():
 
 def uk_sample():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.countries.uk import UK
+    from ulod.ckan import UK
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk-sample")
     download_destination.mkdir(parents=True, exist_ok=True)
@@ -173,7 +173,7 @@ def uk_sample():
 
 def nhs_uk_sample():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.countries.uk import NHSUK
+    from ulod.ckan import NHSUK
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "nhs_uk")
     download_destination.mkdir(parents=True, exist_ok=True)
@@ -202,7 +202,7 @@ def nhs_uk_sample():
 
 def modena_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.countries.italy import Modena
+    from ulod.ckan import Modena
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "modena")
     download_destination.mkdir(parents=True, exist_ok=True)
@@ -230,7 +230,7 @@ def modena_all():
 
 def ferrara_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.countries.italy import Ferrara
+    from ulod.ckan import Ferrara
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "ferrara_v2")
     download_destination.mkdir(parents=True, exist_ok=True)
@@ -258,7 +258,7 @@ def ferrara_all():
 
 def milano_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.countries.italy import Milano
+    from ulod.ckan import Milano
 
     download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "milano")
     download_destination.mkdir(parents=True, exist_ok=True)
@@ -286,7 +286,7 @@ def milano_all():
 
 def madrid_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.countries.spain import Madrid
+    from ulod.ckan import Madrid
 
     download_destination = Path(os.environ["DATADIR"]) / "ulod" / "ckan" / "madrid"
     download_destination.mkdir(parents=True, exist_ok=True)
@@ -314,7 +314,7 @@ def madrid_all():
 
 def valencia_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-    from ulod.countries.spain import Valencia
+    from ulod.ckan import Valencia
 
     download_destination = Path(os.environ["DATADIR"]) / "ulod" / "ckan" / "valencia"
     download_destination.mkdir(parents=True, exist_ok=True)

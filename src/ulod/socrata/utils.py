@@ -6,7 +6,7 @@ __all__ = ["cast_socrata_types"]
 
 
 def _to(pd_dt, pl_dt, engine):
-    return pd_dt if "engine" == "pandas" else pl_dt
+    return pd_dt if engine == "pandas" else pl_dt
 
 
 def _cast_to(

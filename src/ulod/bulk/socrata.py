@@ -1,8 +1,7 @@
 import json
-import os
 import time
 import warnings
-from concurrent.futures import ThreadPoolExecutor, as_completed, ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from tqdm import tqdm
 
@@ -14,25 +13,28 @@ warnings.filterwarnings("ignore")
 
 
 def _executor_task(
-    worker_id: int,
-    metadata: list[dict],
+    resource_metadata: dict,
     cfg: SocrataDownloadConfig,
     client: SocrataClient,
-):
-    if cfg.verbose:
-        _pbar = tqdm(
-            metadata,
-            desc=f"Worker {worker_id}",
-            leave=False,
-            position=worker_id + 1,
-        )
+) -> tuple[int, list[str]]:
+    try:
+        dataset_id = resource_metadata["resource"]["id"]
 
-    success_count = 0
-    errors = []
-
-    for resource_metadata in metadata:
-        try:
-            dataset_id = resource_metadata["resource"]["id"]
+        if cfg.download_strategy == "export" and cfg.download_format in {
+            "csv",
+            "parquet",
+        }:
+            client.download_dataset_export(
+                dataset_id,
+                cfg.datasets_folder_path,
+                cfg.download_format,
+                cfg.engine,
+                chunk_size=cfg.export_chunk_size,
+                limit=cfg.max_rows_per_dataset,
+                parquet_compression_level=cfg.parquet_compression_level,
+                keep_intermediate_files=cfg.keep_intermediate_files,
+            )
+        else:
             client.get_and_store_dataset(
                 dataset_id,
                 cfg.datasets_folder_path,
@@ -42,13 +44,12 @@ def _executor_task(
                 resource_metadata,
                 limit=cfg.max_rows_per_dataset,
                 batch_size=cfg.batch_rows_per_dataset,
+                parquet_compression_level=cfg.parquet_compression_level,
             )
-            success_count += 1
-        except Exception as e:
-            errors.append(f"[DATASET:{dataset_id}][ERROR:{e}][TYPE:{type(e)}]")
-        finally:
-            _pbar.update()
-    return success_count
+        return 1, []
+    except Exception as e:
+        dataset_id = resource_metadata.get("resource", {}).get("id", "<unknown>")
+        return 0, [f"[DATASET:{dataset_id}][ERROR:{e}][TYPE:{type(e)}]"]
 
 
 def download_tabular_resources(
@@ -58,33 +59,33 @@ def download_tabular_resources(
     listener.start()
     logger.info(" BULK DOWNLOAD STARTED ".center(100, "="))
 
-    max_workers = cfg.max_workers
-    packages_per_worker = min(len(metadata) // max_workers, cfg.max_datasets_per_worker)
+    work = [[resource_metadata] for resource_metadata in metadata]
+    success_count = 0
 
-    work = [
-        metadata[i : i + packages_per_worker]
-        for i in range(0, len(metadata), packages_per_worker)
-    ]
+    if not metadata:
+        logger.info("[TOTAL DOWNLOADS:0/0]")
+        logger.info(" BULK DOWNLOAD COMPLETED ".center(100, "="))
+        listener.stop()
+        return work, success_count
+
+    max_workers = min(max(cfg.max_workers, 1), len(metadata))
 
     try:
-        with ThreadPoolExecutor(max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(
                     _executor_task,
-                    worker_id % max_workers,
-                    task,
+                    resource_metadata,
                     cfg,
                     client,
                 )
-                for worker_id, task in enumerate(work)
+                for resource_metadata in metadata
             }
-
-            success_count = 0
 
             for future in tqdm(
                 as_completed(futures),
                 desc="Datasets",
-                total=len(futures),
+                total=len(metadata),
                 disable=not cfg.verbose,
             ):
                 try:

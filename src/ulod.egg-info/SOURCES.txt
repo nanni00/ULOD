@@ -10,6 +10,7 @@ src/ulod.egg-info/top_level.txt
 src/ulod/bulk/__init__.py
 src/ulod/bulk/ckan.py
 src/ulod/bulk/configurations.py
+src/ulod/bulk/datagov.py
 src/ulod/bulk/ods.py
 src/ulod/bulk/socrata.py
 src/ulod/bulk/utils.py
@@ -25,6 +26,10 @@ src/ulod/socrata/portals.py
 src/ulod/socrata/utils.py
 src/ulod/un/__init__.py
 src/ulod/un/un.py
+src/ulod/us/us.py
 src/ulod/utils/exceptions.py
 src/ulod/wbo/__init__.py
 src/ulod/wbo/wbo.py
+tests/test_ckan_hardening.py
+tests/test_datagov_bulk.py
+tests/test_source_type_imports.py

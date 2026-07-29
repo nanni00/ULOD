@@ -188,6 +188,7 @@ class SocrataDownloadConfig:
     use_existing_metadata: bool = True
 
     download_format: Literal["csv", "parquet", "json"] = "csv"
+    download_strategy: Literal["api", "export"] = "export"
     save_metadata: bool = True
 
     engine: Literal["pandas", "polars"] = "pandas"
@@ -195,9 +196,12 @@ class SocrataDownloadConfig:
 
     # Networking and Concurrency
     max_rows_per_dataset: int = 1000
-    batch_rows_per_dataset: int = 1000
+    batch_rows_per_dataset: int = 50_000
     max_datasets_per_worker: int = 100
     max_workers: int = 1
+    parquet_compression_level: int | None = None
+    export_chunk_size: int = 1024 * 1024
+    keep_intermediate_files: bool = False
 
     # Verbosity
     verbose: bool = False
@@ -216,9 +220,10 @@ class SocrataDownloadConfig:
         #     )
 
         # 3. Dynamic logic: batch_rows_per_dataset cannot exceed max_rows_per_dataset
-        self.batch_rows_per_dataset = min(
-            self.max_rows_per_dataset, self.batch_rows_per_dataset
-        )
+        if self.max_rows_per_dataset > -1:
+            self.batch_rows_per_dataset = min(
+                self.max_rows_per_dataset, self.batch_rows_per_dataset
+            )
 
         # 4. Initialize internal state/paths
         self._pbars: dict = {}

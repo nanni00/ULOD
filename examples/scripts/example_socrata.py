@@ -19,7 +19,7 @@ def nyc_all():
     assert "SOCRATA_NYC_APP_TOKEN" in os.environ
     app_token = os.environ["SOCRATA_NYC_APP_TOKEN"]
 
-    download_dst = Path(os.environ["DATADIR"], "ulod", "socrata", "nyc")
+    download_dst = Path(os.environ["DATADIR"]) / "ulod" / "socrata" / "nyc"
     download_dst.mkdir(parents=True, exist_ok=True)
 
     nyc = NYC(app_token)
@@ -28,12 +28,13 @@ def nyc_all():
         download_dst,
         max_datasets=5000,
         from_dataset_index=0,
-        download_format="csv",
+        download_format="parquet",
         engine="polars",
         cast_datatypes=False,
         save_metadata=True,
-        max_rows_per_dataset=10_000_000,
-        max_workers=20,
+        max_rows_per_dataset=-1,
+        parquet_compression_level=15,
+        max_workers=10,
         verbose=True,
     )
 
@@ -46,7 +47,7 @@ def nyc_sample():
 
     nyc = NYC(app_token)
 
-    download_dst = Path(os.environ["DATADIR"], "ulod", "socrata", "nyc")
+    download_dst = Path(os.environ["DATADIR"]) / "ulod" / "socrata" / "nyc"
     download_dst.mkdir(parents=True, exist_ok=True)
 
     cfg = SocrataDownloadConfig(

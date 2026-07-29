@@ -4,6 +4,7 @@ from typing import Literal, Optional
 
 import pandas as pd
 import polars as pl
+import requests
 from sodapy import Socrata
 
 from ulod.base import Source
@@ -65,10 +66,15 @@ class SocrataClient(Source):
             dataset = []
 
             while limit == -1 or len(dataset) < limit:
+                if limit == -1:
+                    current_batch_size = batch_size
+                else:
+                    current_batch_size = min(batch_size, limit - len(dataset))
+
                 new_rows = client.get(
                     dataset_identifier=id,
                     content_type=format,
-                    limit=batch_size,
+                    limit=current_batch_size,
                     offset=offset,
                     **kwargs,
                 )
@@ -84,6 +90,99 @@ class SocrataClient(Source):
         with Socrata(**self._sodapy_configuration) as client:
             metadata = client.get_metadata(id)
         return metadata
+
+    def _soda3_export_url(self, id: str, format: str) -> str:
+        return f"https://{self.domain}/api/v3/views/{id}/export.{format}"
+
+    def _download_export_to_file(
+        self,
+        id: str,
+        file_name: Path,
+        export_format: Literal["csv"] = "csv",
+        chunk_size: int = 1024 * 1024,
+        limit: int = -1,
+    ) -> None:
+        headers = {}
+        auth = None
+        params = {}
+
+        if self.app_token:
+            headers["X-App-Token"] = self.app_token
+
+        if self.user and self.password:
+            auth = (self.user, self.password)
+
+        if limit > -1:
+            params["query"] = f"SELECT * LIMIT {limit}"
+
+        with requests.get(
+            self._soda3_export_url(id, export_format),
+            params=params,
+            headers=headers,
+            auth=auth,
+            stream=True,
+            timeout=self.timeout,
+        ) as response:
+            response.raise_for_status()
+
+            with open(file_name, "wb") as file:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        file.write(chunk)
+
+    def download_dataset_export(
+        self,
+        id: str,
+        store_dst: Path,
+        store_format: Literal["csv", "parquet"] = "parquet",
+        engine: Literal["pandas", "polars"] = "polars",
+        return_dataframe: bool = False,
+        chunk_size: int = 1024 * 1024,
+        limit: int = -1,
+        parquet_compression_level: int | None = None,
+        keep_intermediate_files: bool = False,
+    ) -> None | pd.DataFrame | pl.DataFrame:
+        assert store_dst.exists()
+        if store_format not in {"csv", "parquet"}:
+            raise ValueError("Socrata export downloads support only csv and parquet")
+
+        file_name = store_dst.joinpath(f"{id}.{store_format}")
+
+        if store_format == "csv":
+            self._download_export_to_file(id, file_name, "csv", chunk_size, limit)
+            return None
+
+        csv_file_name = store_dst.joinpath(f"{id}.csv")
+        tmp_csv_file_name = store_dst.joinpath(f"{id}.csv.tmp")
+        intermediate_file_name = (
+            csv_file_name if keep_intermediate_files else tmp_csv_file_name
+        )
+
+        self._download_export_to_file(
+            id,
+            intermediate_file_name,
+            "csv",
+            chunk_size,
+            limit,
+        )
+
+        try:
+            match engine:
+                case "pandas":
+                    df = pd.read_csv(intermediate_file_name)
+                    df.to_parquet(file_name, index=False)
+                case "polars":
+                    df = pl.read_csv(intermediate_file_name)
+                    df.write_parquet(
+                        file_name,
+                        compression_level=parquet_compression_level,
+                    )
+        finally:
+            if not keep_intermediate_files:
+                intermediate_file_name.unlink(missing_ok=True)
+
+        if return_dataframe:
+            return df
 
     def get_dataset_as_df(
         self,
@@ -171,6 +270,7 @@ class SocrataClient(Source):
         resource_metadata: Optional[dict] = None,
         batch_size: int = 1000,
         return_dataframe: bool = False,
+        parquet_compression_level: int | None = None,
         **kwargs,
     ) -> None | pd.DataFrame | pl.DataFrame:
         """
@@ -206,7 +306,10 @@ class SocrataClient(Source):
                 case "csv":
                     df.write_csv(file_name)
                 case "parquet":
-                    df.write_parquet(file_name, compression_level=22)
+                    df.write_parquet(
+                        file_name,
+                        compression_level=parquet_compression_level,
+                    )
                 case "json":
                     df.write_json(file_name)
 

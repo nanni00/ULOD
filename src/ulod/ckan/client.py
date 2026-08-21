@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from threading import Lock
-from typing import Any, Callable, Iterator, Mapping, Optional
+from typing import Any
 
 import requests
 import urllib3
@@ -10,7 +11,7 @@ import urllib3
 from ulod.base import Source
 from ulod.utils.exceptions import HTTPResourceError
 
-__all__ = ["StreamResponse", "CKAN", "SessionCKAN"]
+__all__ = ["CKAN", "SessionCKAN", "StreamResponse"]
 
 
 @dataclass
@@ -46,7 +47,7 @@ class CKAN(Source):
         base_url: str,
         action_url: str,
         headers: dict,
-        connection_kw: Optional[dict] = None,
+        connection_kw: dict | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.action_url = action_url
@@ -57,7 +58,7 @@ class CKAN(Source):
     def default_bulk_download_policy(self) -> dict[str, Any]:
         return {}
 
-    def warmup_session(self, url: Optional[str] = None) -> None:
+    def warmup_session(self, url: str | None = None) -> None:
         return None
 
     def close(self) -> None:
@@ -92,17 +93,14 @@ class CKAN(Source):
 
     def _complete_url_with_kwargs(self, url, **kwargs):
         url += "&".join(
-            map(
-                lambda x: f"{x[0]}={x[1]}",
-                filter(lambda v: v[1] is not None, kwargs.items()),
-            )
+            (f"{x[0]}={x[1]}" for x in filter(lambda v: v[1] is not None, kwargs.items()))
         )
 
         return url
 
     def _base_method(self, action: str, **kwargs):
         action = self._complete_url_with_kwargs(f"{action}?", **kwargs)
-        url = f"{self.final_url}{action}"
+        url = f"{self.final_url}/{action}"
         return self._make_request(url)
 
     @endpoint("package_search")
@@ -132,8 +130,8 @@ class SessionCKAN(CKAN):
         base_url: str,
         action_url: str,
         headers: dict,
-        connection_kw: Optional[dict] = None,
-        session: Optional[requests.Session] = None,
+        connection_kw: dict | None = None,
+        session: requests.Session | None = None,
     ) -> None:
         super().__init__(base_url, action_url, headers, connection_kw)
         self._session = session or requests.Session()
@@ -142,7 +140,7 @@ class SessionCKAN(CKAN):
     def close(self) -> None:
         self._session.close()
 
-    def warmup_session(self, url: Optional[str] = None) -> None:
+    def warmup_session(self, url: str | None = None) -> None:
         target = url or self.base_url
         with self._session_lock:
             response = self._session.get(

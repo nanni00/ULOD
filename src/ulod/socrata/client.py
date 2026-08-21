@@ -1,6 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import pandas as pd
 import polars as pl
@@ -20,8 +20,8 @@ class SocrataClient(Source):
         self,
         domain: str,
         app_token: str,
-        user: Optional[str] = None,
-        password: Optional[str] = None,
+        user: str | None = None,
+        password: str | None = None,
         timeout: int = 20,
     ) -> None:
         self.domain = domain
@@ -136,12 +136,11 @@ class SocrataClient(Source):
         store_dst: Path,
         store_format: Literal["csv", "parquet"] = "parquet",
         engine: Literal["pandas", "polars"] = "polars",
-        return_dataframe: bool = False,
         chunk_size: int = 1024 * 1024,
         limit: int = -1,
         parquet_compression_level: int | None = None,
         keep_intermediate_files: bool = False,
-    ) -> None | pd.DataFrame | pl.DataFrame:
+    ):
         assert store_dst.exists()
         if store_format not in {"csv", "parquet"}:
             raise ValueError("Socrata export downloads support only csv and parquet")
@@ -150,7 +149,7 @@ class SocrataClient(Source):
 
         if store_format == "csv":
             self._download_export_to_file(id, file_name, "csv", chunk_size, limit)
-            return None
+            return
 
         csv_file_name = store_dst.joinpath(f"{id}.csv")
         tmp_csv_file_name = store_dst.joinpath(f"{id}.csv.tmp")
@@ -172,8 +171,8 @@ class SocrataClient(Source):
                     df = pd.read_csv(intermediate_file_name)
                     df.to_parquet(file_name, index=False)
                 case "polars":
-                    df = pl.read_csv(intermediate_file_name)
-                    df.write_parquet(
+                    df = pl.scan_csv(intermediate_file_name, infer_schema_length=10_000, ignore_errors=True)
+                    df.sink_parquet(
                         file_name,
                         compression_level=parquet_compression_level,
                     )
@@ -181,15 +180,12 @@ class SocrataClient(Source):
             if not keep_intermediate_files:
                 intermediate_file_name.unlink(missing_ok=True)
 
-        if return_dataframe:
-            return df
-
     def get_dataset_as_df(
         self,
         id: str,
         engine: Literal["pandas", "polars"] = "polars",
         cast_datatypes: bool = False,
-        resource_metadata: Optional[dict] = None,
+        resource_metadata: dict | None = None,
         batch_size: int = 1000,
         **kwargs,
     ) -> pd.DataFrame | pl.DataFrame:
@@ -267,7 +263,7 @@ class SocrataClient(Source):
         store_format: Literal["csv", "json", "parquet"] = "parquet",
         engine: Literal["pandas", "polars"] = "polars",
         cast_datatypes: bool = False,
-        resource_metadata: Optional[dict] = None,
+        resource_metadata: dict | None = None,
         batch_size: int = 1000,
         return_dataframe: bool = False,
         parquet_compression_level: int | None = None,

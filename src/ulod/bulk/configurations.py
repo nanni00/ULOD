@@ -1,7 +1,64 @@
-from collections.abc import Mapping, Sequence
+import re
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Literal, Optional
+from typing import Any, Literal
+
+_SIZE_PATTERN = re.compile(r"^(?P<value>\d+)(?P<unit>B|KB|MB|GB)$", re.IGNORECASE)
+_SIZE_UNITS = {
+    "B": 1,
+    "KB": 1024,
+    "MB": 1024**2,
+    "GB": 1024**3,
+}
+
+
+def _parse_size_bytes(value: int | str | None, field_name: str) -> int | None:
+    if value is None:
+        return None
+
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be an integer byte count or size string")  # noqa: TRY004
+
+    if isinstance(value, int):
+        if value < 0:
+            raise ValueError(f"{field_name} cannot be negative")
+        return value
+
+    if isinstance(value, str):
+        match = _SIZE_PATTERN.fullmatch(value)
+        if not match:
+            raise ValueError(
+                f"{field_name} must use compact units like '10MB', '1GB', "
+                "'512KB' or '100B'"
+            )
+        return int(match.group("value")) * _SIZE_UNITS[match.group("unit").upper()]
+
+    raise ValueError(f"{field_name} must be an integer byte count or size string")
+
+
+def _parse_http_statuses(
+    value: int | Sequence[int] | None,
+    field_name: str,
+) -> tuple[int, ...]:
+    if value is None:
+        return ()
+
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must contain integer HTTP status codes")  # noqa: TRY004
+
+    if isinstance(value, int):
+        statuses = (value,)
+    else:
+        statuses = tuple(value)
+
+    for status in statuses:
+        if isinstance(status, bool) or not isinstance(status, int):
+            raise ValueError(f"{field_name} must contain integer HTTP status codes")  # noqa: TRY004
+        if status < 100 or status > 599:
+            raise ValueError(f"{field_name} contains invalid HTTP status {status}")
+
+    return tuple(dict.fromkeys(statuses))
 
 
 @dataclass
@@ -13,7 +70,7 @@ class CKANDownloadConfig:
         download_destination: Where datasets will be stored locally.
         from_dataset_index: Starting index with respect to remote indexing system.
 
-        max_datasets: Max number of datasets to download.
+        max_datasets: Max number of resources to download.
         batch_fetch_metadata: Batch size for initial metadata downloading.
         use_existing_metadata: If True and metadata have already been downloaded,
             don't fetch them again.
@@ -32,7 +89,10 @@ class CKANDownloadConfig:
         accept_zip_files: Whether ZIP folders have to be extracted and stored locally.
         http_headers: Dictionary of HTTP parameters passed to a urllib3.PoolManager instance as
             parameter "header".
-        max_resource_size: Max resource size as bytes.
+        max_resource_size: Max resource size as bytes or compact size string
+            like "10MB" or "1GB".
+        skip_resource_statuses: HTTP statuses that should skip a resource without
+            retrying the download request.
         max_process_workers: Max number of concurrent processes.
         max_workers: Max number of threads per process.
     """
@@ -47,7 +107,7 @@ class CKANDownloadConfig:
     use_existing_metadata: bool = True
 
     # Logic-specific filters
-    filter_resource_metadata: Optional[Callable] = None
+    filter_resource_metadata: Callable | None = None
     package_search_filters: dict = field(default_factory=dict)
 
     # Engine & Formats
@@ -57,23 +117,24 @@ class CKANDownloadConfig:
     save_with_resource_name: bool = True
     save_metadata: bool = True
     accept_zip_files: bool = False  # Changed to True to match old 'accept_zip'
-    verbose: bool = False
 
-    # Networking & Concurrency
+    # Networking
     http_headers: dict[str, Any] = field(default_factory=dict)
     connection_pool_kw: dict = field(default_factory=dict)
-    max_resource_size: int = 2**20
-    request_delay_s: Optional[float] = None
-    request_jitter_s: Optional[float] = None
-    retry_backoff_base_s: Optional[float] = None
-    cooldown_on_403_s: Optional[float] = None
-    max_consecutive_403: Optional[int] = None
-    session_warmup_url: Optional[str] = None
+    max_resource_size: int | str | None = 2**20
+    request_delay_s: float | None = None
+    request_jitter_s: float | None = None
+    retry_backoff_base_s: float | None = None
+    cooldown_on_403_s: float | None = None
+    max_consecutive_403: int | None = None
+    session_warmup_url: str | None = None
+    skip_resource_statuses: int | Sequence[int] | None = field(default_factory=tuple)
 
+    # Concurrency
     max_workers: int = 1
 
     # Verbosity
-    verbose: bool = True
+    verbose: bool = False
 
     def __post_init__(self):
         """
@@ -88,7 +149,27 @@ class CKANDownloadConfig:
                 f"Download destination folder doesn't exist: {self.download_destination.resolve()}"
             )
 
-        # ... existing validation ...
+        if self.accept_zip_files:
+            raise NotImplementedError(
+                "ZIP handling is not implemented for CKAN downloads"
+            )
+
+        if self.max_datasets < -1:
+            raise ValueError("max_datasets must be -1 or a non-negative integer")
+        if self.batch_fetch_metadata < 1:
+            raise ValueError("batch_fetch_metadata must be greater than zero")
+        if self.max_workers < 1:
+            raise ValueError("max_workers must be greater than zero")
+
+        self.max_resource_size = _parse_size_bytes(
+            self.max_resource_size,
+            "max_resource_size",
+        )
+        self.skip_resource_statuses = _parse_http_statuses(
+            self.skip_resource_statuses,
+            "skip_resource_statuses",
+        )
+
         self.datasets_folder_path = self.download_destination / "datasets"
         self.log_folder_path = self.download_destination / "logs"
         self.metadata_path = self.download_destination / "metadata.json"
@@ -144,16 +225,16 @@ class ODSDownloadConfig:
     # Boolean flags
     save_with_resource_name: bool = True
     save_metadata: bool = True
-    verbose: bool = False
 
-    # Networking & Concurrency
+    # Networking
     http_headers: dict[str, Any] = field(default_factory=dict)
     connection_pool_kw: dict = field(default_factory=dict)
 
+    # Concurrency
     max_workers: int = 1
 
     # Verbosity
-    verbose: bool = True
+    verbose: bool = False
 
     def __post_init__(self):
         """
@@ -186,6 +267,7 @@ class SocrataDownloadConfig:
 
     # Metadata handling
     use_existing_metadata: bool = True
+    skip_existing_datasets: bool = False
 
     download_format: Literal["csv", "parquet", "json"] = "csv"
     download_strategy: Literal["api", "export"] = "export"

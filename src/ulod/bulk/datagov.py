@@ -14,8 +14,8 @@ from tqdm import tqdm
 
 from ulod.bulk.configurations import USDownloadConfig
 from ulod.bulk.utils import init_logger
-from ulod.countries.us import US
-from ulod.sources.ckan import StreamResponse
+from ulod.ckan import StreamResponse
+from ulod.us.us import US
 from ulod.utils.exceptions import HTTPResourceError, TooLargeResourceError
 
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")

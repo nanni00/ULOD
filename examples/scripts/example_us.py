@@ -6,7 +6,7 @@ sys.path.append(str(Path(__file__, "..", "..", "..", "src").resolve()))
 from fake_useragent import UserAgent
 
 from ulod.bulk import USDownloadConfig, datagov_download_datasets
-from ulod.countries.us import US
+from ulod.us.us import US
 
 ua = UserAgent()
 headers = {"User-Agent": ua.firefox}
@@ -27,4 +27,3 @@ cfg = USDownloadConfig(
 )
 
 datagov_download_datasets(cfg, client)
-

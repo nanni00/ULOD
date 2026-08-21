@@ -22,10 +22,7 @@ def canada_filter_resource_metadata(metadata: dict[str, Any]) -> bool:
     if "language" in metadata and "en" not in metadata["language"]:
         return False
 
-    if re.search(r"\(CSV.+\)", metadata["name"], re.DOTALL) is not None:
-        return False
-
-    return True
+    return re.search(r"\(CSV.+\)", metadata["name"], re.DOTALL) is None
 
 
 def _uk_filter_resource_metadata(metadata: dict[str, Any]) -> bool:
@@ -43,25 +40,15 @@ def _uk_filter_resource_metadata(metadata: dict[str, Any]) -> bool:
     # something that have maybe taken from XML files to CSV without a
     # proper handling. We can't work on them, since their informative
     # content is not easy to catch.
-    if metadata["name"] and re.match(r"Contracts Finder", metadata["name"]):
-        return False
-
-    # related to the tarif datasets
-    # if "ODS" in metadata["name"]:
-    #     return False
-    return True
+    return metadata["name"] and re.match(r"Contracts Finder", metadata["name"]) is None
 
 
 def csv_only_filter_resource_metadata(metadata: dict[str, Any]) -> bool:
-    if metadata["format"].lower() not in ["csv"]:
-        return False
-    return True
+    return metadata["format"].lower() in ["csv"]
 
 
 def csv_json_only_filter_resource_metadata(metadata: dict[str, Any]) -> bool:
-    if metadata["format"].lower() not in ["csv", "json"]:
-        return False
-    return True
+    return metadata["format"].lower() in ["csv", "json"]
 
 
 def canada_sample():
@@ -81,8 +68,8 @@ def canada_sample():
         filter_resource_metadata=canada_filter_resource_metadata,
         download_format="csv",
         http_headers=headers,
-        accept_zip_files=True,
-        max_resource_size=2**25,
+        accept_zip_files=False,
+        max_resource_size="32MB",
         max_workers=2,
         verbose=True,
     )
@@ -106,8 +93,8 @@ def canada_all():
         filter_resource_metadata=canada_filter_resource_metadata,
         download_format="csv",
         http_headers=headers,
-        accept_zip_files=True,
-        max_resource_size=2**26,
+        accept_zip_files=False,
+        max_resource_size="64MB",
         max_workers=4,
         verbose=True,
     )
@@ -119,24 +106,25 @@ def uk_all():
     from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
     from ulod.ckan import UK
 
-    download_destination = Path(os.environ["DATADIR"], "ulod", "ckan", "uk")
+    download_destination = Path(os.environ["DATADIR"]) / "ulod" / "ckan" / "uk"
     download_destination.mkdir(parents=True, exist_ok=True)
 
     client = UK(headers=headers, connection_kw=connection_pool_kw)
 
     download_cfg = CKANDownloadConfig(
         download_destination,
-        max_datasets=100_000,
+        max_datasets=-1,
         from_dataset_index=0,
         batch_fetch_metadata=1000,
         filter_resource_metadata=_uk_filter_resource_metadata,
-        download_format="csv",
+        download_format="parquet",
         http_headers=headers,
         save_with_resource_name=True,
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
-        max_resource_size=2**27,
-        max_workers=4,
+        max_resource_size="1GB",
+        skip_resource_statuses=(403,),
+        max_workers=30,
         verbose=True,
     )
 
@@ -163,7 +151,8 @@ def uk_sample():
         save_with_resource_name=True,
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
-        max_resource_size=2**27,
+        max_resource_size="128MB",
+        skip_resource_statuses=(403,),
         max_workers=20,
         verbose=True,
     )
@@ -192,7 +181,7 @@ def nhs_uk_sample():
         save_with_resource_name=True,
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
-        max_resource_size=2**26,
+        max_resource_size="64MB",
         max_workers=8,
         verbose=True,
     )
@@ -220,7 +209,7 @@ def modena_all():
         save_with_resource_name=True,
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
-        max_resource_size=2**27,
+        max_resource_size="128MB",
         max_workers=1,
         verbose=True,
     )
@@ -248,7 +237,7 @@ def ferrara_all():
         save_with_resource_name=True,
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
-        max_resource_size=2**27,
+        max_resource_size="128MB",
         max_workers=3,
         verbose=True,
     )
@@ -276,7 +265,7 @@ def milano_all():
         save_with_resource_name=True,
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
-        max_resource_size=2**28,
+        max_resource_size="256MB",
         max_workers=2,
         verbose=True,
     )
@@ -304,7 +293,7 @@ def madrid_all():
         save_with_resource_name=True,
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
-        max_resource_size=2**28,
+        max_resource_size="256MB",
         max_workers=2,
         verbose=True,
     )
@@ -332,7 +321,7 @@ def valencia_all():
         save_with_resource_name=True,
         accept_zip_files=False,
         connection_pool_kw=connection_pool_kw,
-        max_resource_size=2**28,
+        max_resource_size="256MB",
         max_workers=2,
         verbose=True,
     )

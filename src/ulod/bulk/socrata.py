@@ -12,13 +12,24 @@ from ulod.socrata.client import SocrataClient
 warnings.filterwarnings("ignore")
 
 
+def _dataset_id(resource_metadata: dict) -> str:
+    return resource_metadata["resource"]["id"]
+
+
+def _dataset_output_path(resource_metadata: dict, cfg: SocrataDownloadConfig):
+    return (
+        cfg.datasets_folder_path
+        / f"{_dataset_id(resource_metadata)}.{cfg.download_format}"
+    )
+
+
 def _executor_task(
     resource_metadata: dict,
     cfg: SocrataDownloadConfig,
     client: SocrataClient,
 ) -> tuple[int, list[str]]:
     try:
-        dataset_id = resource_metadata["resource"]["id"]
+        dataset_id = _dataset_id(resource_metadata)
 
         if cfg.download_strategy == "export" and cfg.download_format in {
             "csv",
@@ -61,14 +72,37 @@ def download_tabular_resources(
 
     work = [[resource_metadata] for resource_metadata in metadata]
     success_count = 0
+    skipped_count = 0
 
     if not metadata:
         logger.info("[TOTAL DOWNLOADS:0/0]")
+        logger.info("[TOTAL SKIPPED:0]")
         logger.info(" BULK DOWNLOAD COMPLETED ".center(100, "="))
         listener.stop()
         return work, success_count
 
-    max_workers = min(max(cfg.max_workers, 1), len(metadata))
+    resources_to_download = metadata
+
+    if cfg.skip_existing_datasets:
+        resources_to_download = []
+        for resource_metadata in metadata:
+            output_path = _dataset_output_path(resource_metadata, cfg)
+            if output_path.exists():
+                skipped_count += 1
+                logger.info(
+                    f"[DATASET:{_dataset_id(resource_metadata)}][SKIPPED EXISTING]"
+                )
+            else:
+                resources_to_download.append(resource_metadata)
+
+    if not resources_to_download:
+        logger.info(f"[TOTAL DOWNLOADS:0/{len(metadata)}]")
+        logger.info(f"[TOTAL SKIPPED:{skipped_count}]")
+        logger.info(" BULK DOWNLOAD COMPLETED ".center(100, "="))
+        listener.stop()
+        return work, success_count
+
+    max_workers = min(max(cfg.max_workers, 1), len(resources_to_download))
 
     try:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -79,13 +113,13 @@ def download_tabular_resources(
                     cfg,
                     client,
                 )
-                for resource_metadata in metadata
+                for resource_metadata in resources_to_download
             }
 
             for future in tqdm(
                 as_completed(futures),
                 desc="Datasets",
-                total=len(metadata),
+                total=len(resources_to_download),
                 disable=not cfg.verbose,
             ):
                 try:
@@ -99,6 +133,7 @@ def download_tabular_resources(
                     logger.error(e)
     finally:
         logger.info(f"[TOTAL DOWNLOADS:{success_count}/{len(metadata)}]")
+        logger.info(f"[TOTAL SKIPPED:{skipped_count}]")
         logger.info(" BULK DOWNLOAD COMPLETED ".center(100, "="))
         listener.stop()
     return work, success_count
@@ -110,6 +145,20 @@ def fetch_metadata(cfg: SocrataDownloadConfig, client: SocrataClient):
     metadata = client.get_datasets_information(cfg.max_datasets, cfg.from_dataset_index)
 
     return metadata
+
+
+def filter_retrieved_metadata(metadata, cfg: SocrataDownloadConfig):
+    retrieved_metadata = [
+        resource_metadata
+        for resource_metadata in metadata
+        if _dataset_output_path(resource_metadata, cfg).exists()
+    ]
+
+    output_path = cfg.metadata_path.parent / "metadata_retrieved_only.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w") as file:
+        json.dump(retrieved_metadata, file, indent=4)
+    return retrieved_metadata
 
 
 def socrata_download_datasets(cfg: SocrataDownloadConfig, client: SocrataClient):
@@ -137,3 +186,5 @@ def socrata_download_datasets(cfg: SocrataDownloadConfig, client: SocrataClient)
                 json.dump(metadata, file, indent=4)
 
     download_tabular_resources(metadata, cfg, client)
+
+    filter_retrieved_metadata(metadata, cfg)

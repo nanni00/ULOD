@@ -4,6 +4,14 @@ import types
 
 sys.modules.setdefault("pandas", types.SimpleNamespace(DataFrame=object, to_datetime=None))
 sys.modules.setdefault(
+    "requests",
+    types.SimpleNamespace(Session=lambda: None, Response=object),
+)
+sys.modules.setdefault(
+    "urllib3",
+    types.SimpleNamespace(request=lambda *_args, **_kwargs: None),
+)
+sys.modules.setdefault(
     "polars",
     types.SimpleNamespace(
         Date=object,

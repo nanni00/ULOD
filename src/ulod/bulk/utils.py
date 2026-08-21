@@ -11,7 +11,7 @@ def init_logger(log_directory: Path) -> tuple[logging.Logger, QueueListener]:
     root.setLevel(logging.INFO)
     q = queue.Queue(-1)
     queue_handler = QueueHandler(q)
-    if root.hasHandlers():
+    if root.handlers:
         root.handlers.clear()
 
     old_dirs = sorted([d for d in os.listdir(log_directory.parent)], reverse=True)
@@ -21,7 +21,7 @@ def init_logger(log_directory: Path) -> tuple[logging.Logger, QueueListener]:
         dir_path = log_directory.parent.joinpath(dir_to_delete)
         shutil.rmtree(dir_path)
 
-    if not root.hasHandlers():
+    if not root.handlers:
         logfile = log_directory.joinpath(f"{os.getpid()}.log")
         handler = RotatingFileHandler(logfile, mode="a", maxBytes=1024**3)
         log_formatter = logging.Formatter(

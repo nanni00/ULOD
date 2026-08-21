@@ -34,7 +34,8 @@ def nyc_all():
         save_metadata=True,
         max_rows_per_dataset=-1,
         parquet_compression_level=15,
-        max_workers=10,
+        max_workers=30,
+        skip_existing_datasets=True,
         verbose=True,
     )
 

@@ -12,9 +12,9 @@ CKAN support is the most general-purpose path for government and city portals.
 
 Available pieces:
 
-- `ulod.sources.CKAN` and `ulod.sources.SessionCKAN` for direct API calls.
+- `ulod.ckan.CKAN` and `ulod.ckan.SessionCKAN` for direct API calls.
 - `ulod.bulk.ckan.ckan_download_datasets` for metadata-driven bulk downloads.
-- Country and city presets under `ulod.countries`, including Canada, UK, NHS UK, Italy, Modena, Ferrara, Milano, Madrid and Valencia.
+- Country and city presets under `ulod.ckan`, including Canada, UK, NHS UK, Italy, Modena, Ferrara, Milano, Madrid and Valencia.
 
 Supported CKAN API methods include:
 
@@ -41,9 +41,9 @@ Socrata support uses `sodapy` and is suited to portals such as NYC Open Data.
 
 Available pieces:
 
-- `ulod.sources.SocrataClient` for dataset metadata and record queries.
+- `ulod.socrata.SocrataClient` for dataset metadata and record queries.
 - `ulod.bulk.socrata.socrata_download_datasets` for bulk dataset export.
-- Socrata presets under `ulod.countries.usa`, including NYC.
+- Socrata presets under `ulod.socrata`, including NYC.
 
 The client can:
 
@@ -61,9 +61,9 @@ ODS support targets OpenDataSoft Explore API v2.1 portals.
 
 Available pieces:
 
-- `ulod.sources.ODS` for direct catalog and export calls.
+- `ulod.ods.ODS` for direct catalog and export calls.
 - `ulod.bulk.ods.ods_download_datasets` for metadata-driven bulk downloads.
-- ODS presets under `ulod.countries`, including Bologna and Paris.
+- ODS presets under `ulod.ods`, including Bologna and Paris.
 
 Supported ODS API methods include:
 
@@ -80,7 +80,7 @@ ULOD also contains narrower helpers for:
 
 - UN Data topic and data mart downloads: `ulod.un.UNDataTopics`.
 - World Bank Data360 indicator downloads: `ulod.wbo.WorldBankDataDownloader`.
-- catalog.data.gov search and iteration: `ulod.countries.us.US`.
+- catalog.data.gov search and iteration: `ulod.us.us.US`.
 
 These are available, but the main bulk-download workflow is currently centered on CKAN, Socrata and ODS.
 
@@ -108,7 +108,7 @@ uv sync
 from pathlib import Path
 
 from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-from ulod.countries.canada import Canada
+from ulod.ckan import Canada
 
 
 def csv_only(resource: dict) -> bool:
@@ -129,7 +129,7 @@ cfg = CKANDownloadConfig(
     batch_fetch_metadata=100,
     filter_resource_metadata=csv_only,
     download_format="csv",
-    max_resource_size=2**26,
+    max_resource_size="64MB",
     max_workers=2,
     verbose=True,
 )
@@ -142,7 +142,7 @@ ckan_download_datasets(cfg, client)
 ```python
 from pathlib import Path
 
-from ulod.sources import SocrataClient
+from ulod.socrata import SocrataClient
 
 
 destination = Path("data/ulod/socrata")
@@ -175,7 +175,7 @@ client.get_and_store_dataset(
 from pathlib import Path
 
 from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
-from ulod.countries.france import Paris
+from ulod.ods import Paris
 
 
 destination = Path("data/ulod/ods/paris")
@@ -246,7 +246,8 @@ Exact metadata filenames vary by source. CKAN also stores resource URL indexes a
 Common bulk options include:
 
 - `download_destination`: existing destination directory.
-- `max_datasets`: maximum number of remote datasets to inspect or download.
+- `max_datasets`: maximum number of CKAN resources to collect, or remote datasets
+  to inspect for other sources.
 - `from_dataset_index`: starting offset for metadata pagination.
 - `batch_fetch_metadata`: metadata page size.
 - `use_existing_metadata`: reuse previously stored metadata when available.
@@ -260,7 +261,10 @@ CKAN-specific options include:
 - `filter_resource_metadata`: predicate used to keep or skip resources.
 - `package_search_filters`: extra filters passed to `package_search`.
 - `save_with_resource_name`: include resource names in output filenames.
-- `max_resource_size`: skip resources above a byte-size limit.
+- `max_resource_size`: skip resources above a byte-size limit, either as bytes or
+  compact strings like `"64MB"` or `"1GB"`.
+- `skip_resource_statuses`: HTTP statuses, such as `(403,)`, to skip for resource
+  downloads without retrying.
 - `request_delay_s`, `request_jitter_s`, `retry_backoff_base_s`, `cooldown_on_403_s`, `max_consecutive_403`: controls for protected or rate-limited portals.
 
 Socrata-specific options include:

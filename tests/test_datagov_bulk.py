@@ -14,7 +14,7 @@ sys.modules.setdefault(
 
 from ulod.bulk.configurations import USDownloadConfig
 from ulod.bulk.datagov import datagov_download_datasets
-from ulod.sources.ckan import StreamResponse
+from ulod.ckan import StreamResponse
 
 
 def dataset(identifier, modified, distributions):

@@ -188,6 +188,8 @@ class ODSDownloadConfig:
         batch_fetch_metadata: Batch size for initial metadata downloading.
         use_existing_metadata: If True and metadata have already been downloaded,
             don't fetch them again.
+        skip_existing_datasets: If True, don't download datasets whose final file
+            already exists.
         filter_resource_metadata: Boolean predicate to apply on metadata.
         package_search_filters: Dictionary with filters on the package_search API
             method.
@@ -216,6 +218,7 @@ class ODSDownloadConfig:
 
     # Metadata handling
     use_existing_metadata: bool = True
+    skip_existing_datasets: bool = False
 
     # Logic-specific filters
 
@@ -249,7 +252,13 @@ class ODSDownloadConfig:
                 f"Download destination folder doesn't exist: {self.download_destination.resolve()}"
             )
 
-        # ... existing validation ...
+        if self.max_datasets < -1:
+            raise ValueError("max_datasets must be -1 or a non-negative integer")
+        if self.batch_fetch_metadata < 1:
+            raise ValueError("batch_fetch_metadata must be greater than zero")
+        if self.max_workers < 1:
+            raise ValueError("max_workers must be greater than zero")
+
         self.datasets_folder_path = self.download_destination / "datasets"
         self.log_folder_path = self.download_destination / "logs"
         self.metadata_path = self.download_destination / "metadata.json"

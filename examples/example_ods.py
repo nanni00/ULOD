@@ -1,38 +1,39 @@
 import argparse
-import os
-import sys
 from pathlib import Path
 
 from fake_useragent import UserAgent
-
-sys.path.append(str(Path(__file__, "..", "..", "..", "src").resolve()))
 
 
 ua = UserAgent()
 headers = {"User-Agent": ua.firefox}
 connection_pool_kw = {"redirect": True, "timeout": 5}
 
+ROOT_DATA_PATH = Path.home() / "data"
+ULOD_DATA_PATH = ROOT_DATA_PATH / "ulod"
+ODS_DATA_PATH = ULOD_DATA_PATH / "ods"
+
 
 def bologna_all():
     from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
     from ulod.ods import Bologna
 
-    download_destination = Path(os.environ["DATADIR"], "ulod", "ods", "bologna")
+    download_destination = ODS_DATA_PATH / "bologna"
     download_destination.mkdir(parents=True, exist_ok=True)
 
     client = Bologna(headers=headers, connection_kw=connection_pool_kw)
 
     cfg = ODSDownloadConfig(
         download_destination,
-        max_datasets=3,
+        max_datasets=5000,
         from_dataset_index=0,
-        batch_fetch_metadata=200,
+        batch_fetch_metadata=100,
         download_format="csv",
         http_headers=headers,
         save_with_resource_name=True,
+        use_existing_metadata=False,
         connection_pool_kw=connection_pool_kw,
         # max_resource_size=2**27,
-        max_workers=1,
+        max_workers=8,
         verbose=True,
     )
 
@@ -43,7 +44,7 @@ def paris_all():
     from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
     from ulod.ods import Paris
 
-    download_destination = Path(os.environ["DATADIR"], "ulod", "ods", "paris")
+    download_destination = ODS_DATA_PATH / "paris"
     download_destination.mkdir(parents=True, exist_ok=True)
 
     client = Paris(headers=headers, connection_kw=connection_pool_kw)

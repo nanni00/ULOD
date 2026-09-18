@@ -32,4 +32,5 @@ src/ulod/wbo/__init__.py
 src/ulod/wbo/wbo.py
 tests/test_ckan_hardening.py
 tests/test_datagov_bulk.py
+tests/test_socrata_bulk.py
 tests/test_source_type_imports.py

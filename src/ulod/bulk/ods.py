@@ -2,6 +2,7 @@ import json
 import math
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,7 @@ import wrapt_timeout_decorator
 from tqdm import tqdm
 
 from ulod.bulk.configurations import ODSDownloadConfig
-from ulod.bulk.utils import init_logger
+from ulod.bulk.utils import init_logger, write_download_report
 from ulod.ods.client import ODS
 
 TIMEOUT_STREAM_TO_DISK = 60
@@ -224,6 +225,8 @@ def filter_retrieved_metadata(metadata: list[dict], cfg: ODSDownloadConfig):
 
 
 def ods_download_datasets(cfg: ODSDownloadConfig, client: ODS):
+    started_at = datetime.now().astimezone()
+    started_timer = time.perf_counter()
     cfg.log_folder_path = cfg.download_destination.joinpath(
         "log", "download", time.strftime("%y%m%d_%H_%M_%S")
     )
@@ -241,11 +244,12 @@ def ods_download_datasets(cfg: ODSDownloadConfig, client: ODS):
     cfg.metadata_path = cfg.download_destination.joinpath("metadata", "metadata.json")
     cfg.metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if (
+    reused_metadata = (
         dataset_ids_path.exists()
         and cfg.metadata_path.exists()
         and cfg.use_existing_metadata
-    ):
+    )
+    if reused_metadata:
         with open(dataset_ids_path, "r") as file:
             dataset_ids = json.load(file)
         with open(cfg.metadata_path, "r") as file:
@@ -259,5 +263,24 @@ def ods_download_datasets(cfg: ODSDownloadConfig, client: ODS):
             with open(dataset_ids_path, "w") as file:
                 json.dump(dataset_ids, file, indent=4)
 
-    download_tabular_resources(dataset_ids, cfg, client)
-    filter_retrieved_metadata(metadata, cfg)
+    skipped_count = 0
+    if cfg.skip_existing_datasets:
+        skipped_count = sum(
+            _dataset_output_path(dataset_id, cfg).exists()
+            for dataset_id in dataset_ids
+        )
+
+    _work, success_count = download_tabular_resources(dataset_ids, cfg, client)
+    retrieved_metadata = filter_retrieved_metadata(metadata, cfg)
+    write_download_report(
+        cfg.download_destination,
+        source="ODS",
+        started_at=started_at,
+        elapsed_seconds=time.perf_counter() - started_timer,
+        total_documents=len(dataset_ids),
+        successful_downloads=success_count,
+        skipped_documents=skipped_count,
+        retrieved_documents=len(retrieved_metadata),
+        output_format=cfg.download_format,
+        metadata_source="reused from disk" if reused_metadata else "fetched from portal",
+    )

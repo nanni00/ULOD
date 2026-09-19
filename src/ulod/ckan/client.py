@@ -51,7 +51,7 @@ class CKAN(Source):
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.action_url = action_url
-        self.final_url = f"{self.base_url}{action_url}"
+        self.final_url = f"{self.base_url}{action_url}".rstrip("/")
         self.headers = headers
         self.connection_kw = connection_kw if connection_kw else {}
 

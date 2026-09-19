@@ -233,6 +233,7 @@ download_destination/
   metadata/
     metadata.json
     ...
+  download_report.md               # summary of the latest bulk-download run
   log/
     download/
       <timestamp>/
@@ -240,6 +241,11 @@ download_destination/
 ```
 
 Exact metadata filenames vary by source. CKAN also stores resource URL indexes and metadata checkpoints; ODS stores dataset IDs; Socrata stores dataset metadata.
+
+Each ODS, CKAN, and Socrata bulk run also writes `download_report.md`. The
+report summarizes the start and finish times, elapsed time, document totals,
+successful and failed downloads, existing-file skips, output format, and
+whether metadata was fetched or reused.
 
 ## Configuration highlights
 

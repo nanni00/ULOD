@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -16,7 +17,7 @@ import wrapt_timeout_decorator
 from tqdm import tqdm
 
 from ulod.bulk.configurations import CKANDownloadConfig
-from ulod.bulk.utils import init_logger
+from ulod.bulk.utils import init_logger, write_download_report
 from ulod.ckan.client import CKAN, StreamResponse
 from ulod.utils.exceptions import HTTPResourceError, TooLargeResourceError
 
@@ -1045,37 +1046,36 @@ def rename_resource_name_files_with_package_id(
 
 
 def ckan_download_datasets(cfg: CKANDownloadConfig, client: CKAN):
-    # policy = _resolve_request_policy(cfg, client)
+    started_at = datetime.now().astimezone()
+    started_timer = time.perf_counter()
+    policy = _resolve_request_policy(cfg, client)
 
-    cfg.log_folder_path = cfg.download_destination.joinpath(
-        "log", "download", time.strftime("%y%m%d_%H_%M_%S")
-    )
+    cfg.log_folder_path = cfg.download_destination / "log" / "download" / time.strftime("%y%m%d_%H_%M_%S")
     cfg.log_folder_path.mkdir(parents=True, exist_ok=True)
 
-    cfg.datasets_folder_path = cfg.download_destination.joinpath(
-        "datasets", cfg.download_format
-    )
+    cfg.datasets_folder_path = cfg.download_destination / "datasets" / cfg.download_format
     cfg.datasets_folder_path.mkdir(parents=True, exist_ok=True)
 
-    rsc_url_path = cfg.download_destination.joinpath("metadata", "rsc_url.json")
-    cfg.metadata_path = cfg.download_destination.joinpath("metadata", "metadata.json")
+    rsc_url_path = cfg.download_destination / "metadata" / "rsc_url.json"
+    cfg.metadata_path = cfg.download_destination / "metadata" / "metadata.json"
     cfg.metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
     logger, listener = init_logger(cfg.log_folder_path)
     listener.start()
-    # coordinator = RequestCoordinator(policy)
+    coordinator = RequestCoordinator(policy)
 
     try:
         try:
-            # if policy.session_warmup_url:
-            #     logger.info(f"Warming up CKAN session via {policy.session_warmup_url}")
-            #     client.warmup_session(policy.session_warmup_url)
+            if policy.session_warmup_url:
+                logger.info(f"Warming up CKAN session via {policy.session_warmup_url}")
+                client.warmup_session(policy.session_warmup_url)
 
-            if (
+            reused_metadata = (
                 rsc_url_path.exists()
                 and cfg.metadata_path.exists()
                 and cfg.use_existing_metadata
-            ):
+            )
+            if reused_metadata:
                 with open(rsc_url_path, "r") as file:
                     rsc_url = json.load(file)
                 with open(cfg.metadata_path, "r") as file:
@@ -1094,9 +1094,27 @@ def ckan_download_datasets(cfg: CKANDownloadConfig, client: CKAN):
         finally:
             listener.stop()
 
-        # download_tabular_resources(rsc_url, cfg, client, coordinator)
+        _work, success_count = download_tabular_resources(
+            rsc_url, cfg, client, coordinator
+        )
         rename_resource_name_files_with_package_id(cfg, metadata)
-        filter_retrieved_metadata(metadata, cfg)
+        retrieved_metadata = filter_retrieved_metadata(metadata, cfg)
+        retrieved_resource_count = sum(
+            len(package.get("resources", [])) for package in retrieved_metadata
+        )
+        write_download_report(
+            cfg.download_destination,
+            source="CKAN",
+            started_at=started_at,
+            elapsed_seconds=time.perf_counter() - started_timer,
+            total_documents=len(rsc_url),
+            successful_downloads=success_count,
+            retrieved_documents=retrieved_resource_count,
+            output_format=cfg.download_format,
+            metadata_source=(
+                "reused from disk" if reused_metadata else "fetched from portal"
+            ),
+        )
     finally:
         client.close()
 

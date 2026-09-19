@@ -1,6 +1,5 @@
 import argparse
 import os
-import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -11,15 +10,17 @@ from ulod.bulk.socrata import (
 )
 from ulod.socrata import NYC
 
-p = Path.cwd().parent.parent / ".env"
-load_dotenv(p.resolve(), verbose=True)
+from config import SOCRATA_DATA_PATH
+
+_dotenv_path = Path.cwd().parents[2] / ".env"
+load_dotenv(_dotenv_path.resolve(), verbose=True)
 
 
-def nyc_all():
+def nyc():
     assert "SOCRATA_NYC_APP_TOKEN" in os.environ
     app_token = os.environ["SOCRATA_NYC_APP_TOKEN"]
 
-    download_dst = Path(os.environ["DATADIR"]) / "ulod" / "socrata" / "nyc"
+    download_dst = SOCRATA_DATA_PATH / "nyc"
     download_dst.mkdir(parents=True, exist_ok=True)
 
     nyc = NYC(app_token)
@@ -42,30 +43,6 @@ def nyc_all():
     socrata_download_datasets(cfg, nyc)
 
 
-def nyc_sample():
-    assert "SOCRATA_NYC_APP_TOKEN" in os.environ
-    app_token = os.environ["SOCRATA_NYC_APP_TOKEN"]
-
-    nyc = NYC(app_token)
-
-    download_dst = Path(os.environ["DATADIR"]) / "ulod" / "socrata" / "nyc"
-    download_dst.mkdir(parents=True, exist_ok=True)
-
-    cfg = SocrataDownloadConfig(
-        download_dst,
-        max_datasets=10,
-        from_dataset_index=0,
-        download_format="csv",
-        engine="pandas",
-        cast_datatypes=True,
-        max_rows_per_dataset=20,
-        max_workers=1,
-        verbose=True,
-    )
-
-    socrata_download_datasets(cfg, nyc)
-
-
 def main():
     parser = argparse.ArgumentParser(description="Socrata bulk downloads examples CLI")
 
@@ -79,18 +56,11 @@ def main():
 
     args = parser.parse_args()
 
-    # Dispatch logic
-    commands = {
-        ("nyc", "all"): nyc_all,
-        ("nyc", "sample"): nyc_sample,
-    }
+    match args.location:
+        case "nyc":
+            func = nyc
 
-    func = commands.get((args.location, args.mode))
-
-    if func:
-        func()
-    else:
-        print(f"Error: The combination {args.location} {args.mode} is not supported.")
+    func()
 
 
 if __name__ == "__main__":

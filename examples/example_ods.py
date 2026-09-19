@@ -1,20 +1,10 @@
 import argparse
-from pathlib import Path
 
-from fake_useragent import UserAgent
-
-
-ua = UserAgent()
-headers = {"User-Agent": ua.firefox}
-connection_pool_kw = {"redirect": True, "timeout": 5}
-
-ROOT_DATA_PATH = Path.home() / "data"
-ULOD_DATA_PATH = ROOT_DATA_PATH / "ulod"
-ODS_DATA_PATH = ULOD_DATA_PATH / "ods"
+from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
+from config import ODS_DATA_PATH, headers, connection_pool_kw
 
 
-def bologna_all():
-    from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
+def bologna():
     from ulod.ods import Bologna
 
     download_destination = ODS_DATA_PATH / "bologna"
@@ -40,8 +30,7 @@ def bologna_all():
     ods_download_datasets(cfg, client)
 
 
-def paris_all():
-    from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
+def paris():
     from ulod.ods import Paris
 
     download_destination = ODS_DATA_PATH / "paris"
@@ -76,23 +65,15 @@ def main():
         choices=["bologna", "paris"],
         help="Target location",
     )
-    parser.add_argument("mode", choices=["all", "sample"], help="Download mode")
 
     args = parser.parse_args()
 
-    # Dispatch logic
-    commands = {
-        ("bologna", "all"): bologna_all,
-        ("paris", "all"): paris_all,
-    }
-
-    func = commands.get((args.location, args.mode))
-
-    if func:
-        func()
-    else:
-        print(f"Error: The combination {args.location} {args.mode} is not supported.")
-
+    match args.location:
+        case "bologna":
+            func = bologna
+        case "paris":
+            func = paris
+    func ()
 
 if __name__ == "__main__":
     main()

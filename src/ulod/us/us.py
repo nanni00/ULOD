@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 import urllib3
 
 from ulod.base import Source
-from ulod.ckan import StreamResponse
+from ulod.utils.transport import StreamResponse
 from ulod.utils.exceptions import HTTPResourceError
 
 __all__ = ["US"]

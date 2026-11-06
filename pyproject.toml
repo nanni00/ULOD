@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "ulod"
-version = "0.2.2"
+version = "0.3.0"
 
 authors = [
   { name = "Giovanni Malaguti", email = "giovanni.malaguti00@gmail.com" },
@@ -12,21 +16,17 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
   "beautifulsoup4>=4.14.3",
-  "dotenv>=0.9.9",
+  "ckanapi>=4.11",
   "fake-useragent>=2.2.0",
-  "fastexcel>=0.18.0",
-  "pandas>=2.3.3",
   "polars>=1.36.1",
   "requests>=2.32.5",
   "sodapy>=2.2.0",
   "tqdm>=4.67.1",
   "urllib3>=2.6.2",
-  "wrapt-timeout-decorator>=1.5.1",
 ]
 
 [project.optional-dependencies]
 testing = [
-    "dotenv>=0.9.9",
     "pytest>=9.1.1",
 ]
 

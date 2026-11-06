@@ -1,287 +1,155 @@
 # UseLess Open Data
 
-UseLess Open Data (ULOD) is a small Python library for collecting datasets from open-data portals. It focuses on practical bulk downloads from CKAN, Socrata and OpenDataSoft (ODS) sources, with a few additional helpers for portals such as UN Data, World Bank Data360 (WBO), and catalog.data.gov.
+ULOD downloads open-data catalogs, original metadata and native files from CKAN,
+Socrata and OpenDataSoft. It does not convert dataframes or restrict discovery to
+tabular datasets. ZIPs, PDFs, images and other published files remain unchanged.
 
-The project is intentionally lightweight: it wraps common portal APIs, fetches metadata, filters resources, and stores downloaded datasets plus logs and metadata snapshots on disk.
+Requires Python 3.13+. Install with `pip install -e .` or `uv sync`.
 
-## Supported sources
-
-### CKAN
-
-CKAN support is the most general-purpose path for government and city portals.
-
-Available pieces:
-
-- `ulod.ckan.CKAN` and `ulod.ckan.SessionCKAN` for direct API calls.
-- `ulod.bulk.ckan.ckan_download_datasets` for metadata-driven bulk downloads.
-- Country and city presets under `ulod.ckan`, including Canada, UK, NHS UK, Italy, Modena, Ferrara, Milano, Madrid and Valencia.
-
-Supported CKAN API methods include:
-
-- `package_search`
-- `package_show`
-- `package_list`
-- `resource_show`
-- `resource_search`
-
-Bulk downloads can:
-
-- paginate portal metadata;
-- filter resources before downloading;
-- save metadata and resource URL indexes;
-- resume metadata collection from checkpoints;
-- stream resources to disk;
-- limit maximum resource size;
-- apply request delays, jitter, retry backoff and 403 cooldowns;
-- use multiple download workers.
-
-### Socrata
-
-Socrata support uses `sodapy` and is suited to portals such as NYC Open Data.
-
-Available pieces:
-
-- `ulod.socrata.SocrataClient` for dataset metadata and record queries.
-- `ulod.bulk.socrata.socrata_download_datasets` for bulk dataset export.
-- Socrata presets under `ulod.socrata`, including NYC.
-
-The client can:
-
-- list dataset metadata;
-- fetch records in batches;
-- return pandas or polars dataframes;
-- optionally cast datatypes from Socrata metadata;
-- store datasets as CSV, JSON or Parquet.
-
-Socrata portals usually require an application token for reliable usage.
-
-### ODS
-
-ODS support targets OpenDataSoft Explore API v2.1 portals.
-
-Available pieces:
-
-- `ulod.ods.ODS` for direct catalog and export calls.
-- `ulod.bulk.ods.ods_download_datasets` for metadata-driven bulk downloads.
-- ODS presets under `ulod.ods`, including Bologna and Paris.
-
-Supported ODS API methods include:
-
-- `catalog_datasets`
-- `catalog_exports`
-- `catalog_exports_csv`
-- `export_dataset_in_format`
-
-Bulk downloads can fetch dataset IDs from the catalog, save metadata snapshots, and export datasets to disk.
-
-### Other sources
-
-ULOD also contains narrower helpers for:
-
-- UN Data topic and data mart downloads: `ulod.un.UNDataTopics`.
-- World Bank Data360 indicator downloads: `ulod.wbo.WorldBankDataDownloader`.
-- catalog.data.gov search and iteration: `ulod.us.us.US`.
-
-These are available, but the main bulk-download workflow is currently centered on CKAN, Socrata and ODS.
-
-## Installation
-
-The project requires Python 3.13 or newer.
-
-From a local checkout:
-
-```bash
-pip install -e .
-```
-
-With `uv`:
-
-```bash
-uv sync
-```
-
-## Quick usage
-
-### CKAN bulk download
+## Download a catalog
 
 ```python
-from pathlib import Path
+from ulod import DownloadConfig, download_catalog
 
-from ulod.bulk.ckan import CKANDownloadConfig, ckan_download_datasets
-from ulod.ckan import Canada
-
-
-def csv_only(resource: dict) -> bool:
-    return resource.get("format", "").lower() == "csv"
-
-
-destination = Path("data/ulod/ckan/canada")
-destination.mkdir(parents=True, exist_ok=True)
-
-client = Canada(
-    headers={"User-Agent": "ulod"},
-    connection_kw={"timeout": 10, "redirect": True},
+report = download_catalog(
+    "ckan",
+    "https://open.canada.ca/data",
+    DownloadConfig("downloads/canada", formats={"csv", "zip"}),
 )
-
-cfg = CKANDownloadConfig(
-    download_destination=destination,
-    max_datasets=100,
-    batch_fetch_metadata=100,
-    filter_resource_metadata=csv_only,
-    download_format="csv",
-    max_resource_size="64MB",
-    max_workers=2,
-    verbose=True,
-)
-
-ckan_download_datasets(cfg, client)
+print(report)
+print(report.success)
 ```
 
-### Socrata dataset download
+Use the same interface for all three sources:
 
-```python
-from pathlib import Path
+| Source | Example portal root |
+| --- | --- |
+| `ckan` | `https://open.canada.ca/data` |
+| `socrata` | `https://data.cityofnewyork.us` |
+| `ods` | `https://opendata.paris.fr` |
 
-from ulod.socrata import SocrataClient
+The URL includes a deployment subpath, if any, but excludes the API endpoint.
+Each destination belongs to one portal. Directories are created automatically.
 
+## Selection and exports
 
-destination = Path("data/ulod/socrata")
-destination.mkdir(parents=True, exist_ok=True)
+- `formats=None` (default): accept all native file formats.
+- `formats={"csv", "zip"}`: accept CSV **or** ZIP; this does not create ZIPs or
+  convert another format into CSV. Extensions and MIME aliases are normalized.
+- `formats=set()`: collect metadata without downloading data files.
+- `dataset_filter` and `resource_filter`: predicates receiving the original
+  dataset/resource metadata. Socrata's discovery entries are also in `catalog.json`.
+  Generated export resources have a `format`/`url` descriptor; ODS uses its original
+  export link descriptor. Metadata is preserved even for excluded datasets/files.
+- There are no default dataset, row or file-size caps. Optional `max_datasets` and
+  `max_resource_size` (bytes) explicitly bound a run.
 
-client = SocrataClient(
-    domain="data.cityofnewyork.us",
-    app_token="YOUR_APP_TOKEN",
-)
+Socrata and ODS download **one generated export per dataset**, plus all matching
+files/attachments. `export_format="csv"` is preferred. If it is unavailable or
+filtered out, the first allowed format in alphabetical order is chosen. Resource
+predicates apply before export selection. No matching export means no generated
+export is downloaded. Alternative ODS exports are native files and are retained.
 
-df = client.get_dataset_as_df(
-    id="erm2-nwe9",
-    engine="polars",
-    limit=1000,
-    batch_size=500,
-)
+Socrata uses SODA3 full exports (CSV, TSV, XLSX; KML/KMZ for spatial columns), native
+geospatial exports and file attachments. It does not use the deprecated SODA1
+`rows` endpoints. Public full exports can be anonymous; provide `app_token` for
+portal quotas or `access_token` for OAuth access. JSON record querying is separate
+from the supported full file exports. See the [SODA3 migration guide](https://support.socrata.com/hc/en-us/articles/43491231777047-Using-the-SODA3-API).
 
-client.get_and_store_dataset(
-    id="erm2-nwe9",
-    store_dst=destination,
-    store_format="parquet",
-    engine="polars",
-    limit=1000,
-)
-```
+CKAN uses `ckanapi.RemoteCKAN` for package discovery and full metadata. Socrata uses
+`sodapy` for full asset metadata, with explicit catalog pagination because its
+fixed-size listing method rejects short final pages on larger catalogs. ODS uses
+the [Explore v2.1 API](https://help.opendatasoft.com/apis/ods-explore-v2/) directly.
 
-### ODS bulk download
-
-```python
-from pathlib import Path
-
-from ulod.bulk.ods import ODSDownloadConfig, ods_download_datasets
-from ulod.ods import Paris
-
-
-destination = Path("data/ulod/ods/paris")
-destination.mkdir(parents=True, exist_ok=True)
-
-client = Paris(
-    headers={"User-Agent": "ulod"},
-    connection_kw={"timeout": 10, "redirect": True},
-)
-
-cfg = ODSDownloadConfig(
-    download_destination=destination,
-    max_datasets=100,
-    batch_fetch_metadata=100,
-    download_format="csv",
-    max_workers=4,
-    verbose=True,
-)
-
-ods_download_datasets(cfg, client)
-```
-
-## Example scripts
-
-Runnable examples are available in `examples/scripts`:
-
-- `example_ckan.py`: CKAN downloads for Canada, UK, NHS UK, Modena, Ferrara, Milano, Madrid and Valencia.
-- `example_socrata.py`: Socrata downloads for NYC Open Data.
-- `example_ods.py`: ODS downloads for Bologna and Paris.
-- `example_us.py`: catalog.data.gov iteration.
-- `example_un_topics.py`: UN Data topic tree download example.
-
-Most scripts expect `DATADIR` to point to a writable data directory. Socrata examples also expect the relevant app token in the environment, for example `SOCRATA_NYC_APP_TOKEN`.
-
-Example:
-
-```bash
-export DATADIR="$HOME/data"
-export SOCRATA_NYC_APP_TOKEN="..."
-
-python examples/scripts/example_ckan.py canada sample
-python examples/scripts/example_socrata.py nyc sample
-python examples/scripts/example_ods.py paris all
-```
-
-## Output layout
-
-Bulk downloaders create a structured directory under `download_destination`:
+## Files and completion
 
 ```text
-download_destination/
-  datasets/
-    <format>/
-      ...
-  metadata/
-    metadata.json
-    ...
-  download_report.md               # summary of the latest bulk-download run
-  log/
-    download/
-      <timestamp>/
-        ...
+downloads/canada/
+├── catalog.json                 # original catalog entries + discovery checkpoint
+├── manifest.json                # aggregate resource URLs, paths, outcomes, hashes
+├── download_report.json         # completion status and counters
+└── datasets/
+    └── <packageID>/
+        ├── metadata.json        # full original package metadata
+        ├── downloads.json       # incremental resource checkpoint
+        ├── <resourceID>.csv
+        └── <resourceID>.zip
 ```
 
-Exact metadata filenames vary by source. CKAN also stores resource URL indexes and metadata checkpoints; ODS stores dataset IDs; Socrata stores dataset metadata.
+Socrata/ODS use dataset IDs as folders too; exports are named `export-<format>.<ext>`
+and attachments have stable IDs. ODS also saves original `exports.json` and
+`attachments.json` responses. Unsafe identifier characters are percent-encoded;
+IDs, URLs and original metadata remain in the manifest. Unknown formats use `.bin`.
+Unknown formats do not match an explicit format allowlist.
 
-Each ODS, CKAN, and Socrata bulk run also writes `download_report.md`. The
-report summarizes the start and finish times, elapsed time, document totals,
-successful and failed downloads, existing-file skips, output format, and
-whether metadata was fetched or reused.
+`report.success` is true only when discovery, metadata and all selected downloads
+are complete. Missing links, permissions, unsupported service/visualization assets,
+size limits and failed transfers are visible in the manifest. Filtering does not
+remove catalog metadata; intentionally filtered files are not failures. A
+`max_datasets` run that covers only part of the catalog is explicitly incomplete.
 
-## Configuration highlights
+Discovery checks totals and duplicate IDs; failures preserve a partial snapshot
+and cannot report success. This is an API snapshot, not an atomic backup of a
+changing server. Portal APIs may impose discovery caps; those failures are reported.
+ULOD downloads advertised files/exports, not arbitrary websites linked in text or
+external service databases. WMS/WFS and unsupported visualization types retain
+metadata and an unsupported outcome.
 
-Common bulk options include:
+## Resume and networking
 
-- `download_destination`: existing destination directory.
-- `max_datasets`: maximum number of CKAN resources to collect, or remote datasets
-  to inspect for other sources.
-- `from_dataset_index`: starting offset for metadata pagination.
-- `batch_fetch_metadata`: metadata page size.
-- `use_existing_metadata`: reuse previously stored metadata when available.
-- `save_metadata`: persist fetched metadata.
-- `download_format`: output format, usually `csv`, `json` or `parquet`.
-- `max_workers`: number of concurrent workers.
-- `verbose`: show progress bars.
+- `resume=True`: reuse a completed file only if its metadata fingerprint, size and
+  SHA-256 match. Dataset metadata is fetched again on each run.
+- `refresh_metadata=True`: restart catalog discovery to include new/removed
+  datasets. By default, discovery resumes/reuses `catalog.json`.
+- Files are streamed to `.part`, then atomically renamed. An interrupted file
+  restarts from byte zero; completed files survive. Per-dataset checkpoints are
+  updated after each transfer; the aggregate manifest is written when the run exits.
+- Files left by earlier runs are not deleted when filters or remote catalogs change.
+  The new manifest describes the current run. Old flat layouts are never migrated
+  or treated as completed downloads automatically.
+- Defaults: `max_workers=4`, `timeout=60`, `retries=3`, exponential
+  `retry_backoff=1`, `request_delay=0`, `chunk_size=1048576`. Concurrency is across
+  a dataset's resources; metadata is collected sequentially. Rate limits honor
+  `Retry-After` for HTTP requests.
+- Use `api_key` for CKAN/ODS, `app_token`/`access_token` for Socrata, and `headers`
+  for custom portal headers. Portal credentials are not sent to external files.
+  Supply credentials for each portal separately; do not run simultaneous jobs in
+  the same destination.
 
-CKAN-specific options include:
+Local filesystem errors and invalid configurations raise exceptions. Remote
+failures are recorded in the returned report. Keyboard interrupts save checkpoints
+and then propagate. An abrupt process termination may leave a `.part` file, which
+will be overwritten on retry.
 
-- `filter_resource_metadata`: predicate used to keep or skip resources.
-- `package_search_filters`: extra filters passed to `package_search`.
-- `save_with_resource_name`: include resource names in output filenames.
-- `max_resource_size`: skip resources above a byte-size limit, either as bytes or
-  compact strings like `"64MB"` or `"1GB"`.
-- `skip_resource_statuses`: HTTP statuses, such as `(403,)`, to skip for resource
-  downloads without retrying.
-- `request_delay_s`, `request_jitter_s`, `retry_backoff_base_s`, `cooldown_on_403_s`, `max_consecutive_403`: controls for protected or rate-limited portals.
+## Migration from 0.2
 
-Socrata-specific options include:
+Version 0.3 replaces `CKANDownloadConfig`, `SocrataDownloadConfig`,
+`ODSDownloadConfig`, the three old bulk functions and all CKAN/Socrata/ODS
+client/portal classes with `DownloadConfig` and `download_catalog`.
 
-- `engine`: `pandas` or `polars`.
-- `cast_datatypes`: cast columns using Socrata metadata when available.
-- `max_rows_per_dataset`: row cap per dataset.
-- `batch_rows_per_dataset`: API batch size.
+Replace client construction with a source name and portal root. Use `formats` for
+selection, `export_format` for generated exports, and `resource_filter` instead of
+`filter_resource_metadata`. Remove `engine`, `cast_datatypes`, conversion options,
+`accept_zip_files`, `save_with_resource_name`, and row limits. Dataset limits use
+`None` for unlimited; file-size limits use integer bytes. Start a new output folder
+for the new layout. Parquet conversion, if needed, is a separate downstream step.
 
-## Caveats
+WBO and UN are unchanged. Their imports and dependencies remain available.
+Data.gov retains `USDownloadConfig`, `ulod.us.us.US`, and
+`ulod.bulk.datagov_download_datasets`, including its existing layout and behavior.
+The old snapshot descriptions in `README_uk.md` and `README_nyc.md`, and the
+Parquet statistics script, describe historical collections.
 
-This is a pragmatic downloader, not a polished data platform. Some portals are slow, inconsistent, rate-limited or protected by edge services. Bulk downloads may need conservative worker counts, request delays and retries.
+## Examples and tests
 
-Parallel execution is still rough in places. In some failure modes, especially with large jobs or interrupted remote connections, stopping a run may require terminating the Python process.
+```shell
+python examples/example_ckan.py downloads/canada --formats csv zip
+python examples/example_socrata.py downloads/nyc --formats csv zip
+python examples/example_ods.py downloads/paris
+python -m unittest discover -s tests -v
+```
+
+Each example accepts `--url`, `--max-datasets`, `--max-resource-size`, `--workers`
+and `--refresh-metadata`. Omit `--formats` for all formats or pass it without values
+for metadata only. Credentials come from `CKAN_API_KEY`, `ODS_API_KEY`,
+`SOCRATA_APP_TOKEN` and `SOCRATA_ACCESS_TOKEN` environment variables.

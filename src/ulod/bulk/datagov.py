@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from ulod.bulk.configurations import USDownloadConfig
 from ulod.bulk.utils import init_logger
-from ulod.ckan import StreamResponse
+from ulod.utils.transport import StreamResponse
 from ulod.us.us import US
 from ulod.utils.exceptions import HTTPResourceError, TooLargeResourceError
 

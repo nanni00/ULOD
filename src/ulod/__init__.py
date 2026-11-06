@@ -1,18 +1,17 @@
-"""
-A very basic, unefficient, unsafe library to access some CKAN, Socrata and other Open Data endpoints.
+"""Download open-data catalogs, metadata and native files locally."""
 
-At the time I am writing, there is no library that allows to access and download, even
-with minimal setting and super simple functionalities, both these Open Data providers,
-and in general Python libraries for CKAN are quite sparse or are not focused on some aspects
-which instead are relevant for my work.
-"""
+# from importlib import import_module
+from . import bulk
+from . import un
+from . import wbo
+from .bulk.catalog import download_catalog, DownloadReport, DownloadConfig
 
-from importlib import import_module
-
-__all__ = ["base", "bulk", "ckan", "ods", "socrata", "un", "wbo"]
+__all__ = ["DownloadConfig", "DownloadReport", "download_catalog", "bulk", "un", "wbo"]
 
 
-def __getattr__(name: str):
-    if name in __all__:
-        return import_module(f"ulod.{name}")
-    raise AttributeError(f"module 'ulod' has no attribute {name!r}")
+# def __getattr__(name):
+#     if name in {"DownloadConfig", "DownloadReport", "download_catalog"}:
+#         return getattr(import_module("ulod.bulk"), name)
+#     if name in {"base", "bulk", "un", "wbo", "us"}:
+#         return import_module(f"ulod.{name}")
+#     raise AttributeError(f"module 'ulod' has no attribute {name!r}")

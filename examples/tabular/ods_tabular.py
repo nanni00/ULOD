@@ -1,8 +1,7 @@
 import os
 
-from tabular_filter import tabular_files
-
 from ulod import DownloadConfig, download_catalog
+from ulod.bulk.filters import tabular_files
 
 MAX_DATASETS = None  # Catalog entries to inspect, before format filtering.
 MAX_DOWNLOADS = None  # Maximum CSV exports/files selected, including existing files.
@@ -50,5 +49,5 @@ def bologna():
 
 
 if __name__ == "__main__":
-    paris()
-    # bologna()
+    # paris()
+    bologna()

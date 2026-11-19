@@ -21,6 +21,7 @@ def main():
             max_datasets=MAX_DATASETS,
             max_workers=MAX_WORKERS,
             api_key=os.getenv("ODS_API_KEY"),
+            verbose=True
         ),
     )
     print(report)

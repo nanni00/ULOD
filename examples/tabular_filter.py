@@ -3,7 +3,7 @@
 from ulod.bulk.common import infer_format
 
 
-def tabular_files(formats, max_downloads):
+def tabular_files(formats, max_downloads: int | None):
     """Select at most max_downloads matching resources during one run.
 
     Create a fresh predicate for each download_catalog call. Existing files and
@@ -25,7 +25,7 @@ def tabular_files(formats, max_downloads):
         )
         filename = metadata.get("filename") or metadata.get("blobFilename") or ""
         fmt = infer_format(url, declared, filename)
-        if fmt not in formats or selected >= max_downloads:
+        if fmt not in formats or (max_downloads and selected >= max_downloads):
             return False
         selected += 1
         return True

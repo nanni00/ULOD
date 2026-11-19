@@ -15,6 +15,7 @@ class DownloadConfig:
     ``resume`` reuses verified completed files; ``refresh_metadata`` restarts catalog
     discovery. Partial files are restarted, not appended with HTTP Range requests.
     Credentials/headers are sent only to the configured portal origin.
+    ``verbose`` shows the destination and overall progress in processed datasets.
     """
 
     download_destination: Path | str

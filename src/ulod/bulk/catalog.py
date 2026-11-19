@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
+from tqdm import tqdm
 
 from .common import (
     HTTP,
@@ -197,7 +198,7 @@ def download_catalog(source: str, url: str, config: DownloadConfig) -> DownloadR
     destination.mkdir(parents=True, exist_ok=True)
     if cfg.verbose:
         print(f"Download destination: {cfg.download_destination}")
-        
+
     manifest_path = destination / "manifest.json"
     previous = read_json(manifest_path, {})
     if previous and (previous.get("source"), previous.get("url")) != (source, url):
@@ -255,8 +256,16 @@ def download_catalog(source: str, url: str, config: DownloadConfig) -> DownloadR
         ]
         report.metadata_complete = False
         save()
-        with ThreadPoolExecutor(max_workers=cfg.max_workers) as executor:
-            for entry in entries:
+        with (
+            ThreadPoolExecutor(max_workers=cfg.max_workers) as executor,
+            tqdm(
+                entries,
+                desc="Downloading catalog",
+                unit="dataset",
+                disable=not cfg.verbose,
+            ) as progress,
+        ):
+            for entry in progress:
                 identifier = adapter.identifier(entry)
                 folder = destination / "datasets" / safe_name(identifier)
                 folder.mkdir(parents=True, exist_ok=True)
